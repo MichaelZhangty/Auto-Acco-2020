@@ -15,13 +15,10 @@ import sys
 import pretty_midi
 import matplotlib.pyplot as plt
 from madmom.features.onsets import CNNOnsetProcessor
-# import scipy.statss
 import os
 import librosa
 import statsmodels.api as sm
 from score_following_utilities import *
-
-
 
 # Rc parameter for each midi
 # zhui guang zhe
@@ -34,7 +31,7 @@ from score_following_utilities import *
 # parameter to change
 audio_name = "audio3"
 midi_name  = "midi3"
-Rc = 67
+Rc = 70
 score_end_time = 60
 
 
@@ -67,6 +64,8 @@ CONF_FILE = 'confidence/{}_confidence.txt'.format(audio_name)
 
 def score_follow(audio_file, midi_file, feature, mask):
     old_midi = pretty_midi.PrettyMIDI(MIDIFILE)
+    # get midi tempo
+    midi_tempo = old_midi.estimate_tempo()
     new_midi = pretty_midi.PrettyMIDI()
     piano_program = pretty_midi.instrument_name_to_program('Acoustic Grand Piano')
     piano = pretty_midi.Instrument(program=piano_program)

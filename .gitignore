@@ -10,5 +10,6 @@ auto_accompany
 score_following
 time_beat
 confidence
+test.py
 __pycache__
 *~

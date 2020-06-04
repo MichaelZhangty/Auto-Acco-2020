@@ -15,6 +15,7 @@ audio_name = "audio3"
 midi_name = "midi3"
 end_time = 60
 
+
 time_beat_file = 'time_beat/time_beat_{}.txt'.format(audio_name)
 confidence_file = 'confidence/confidence_queue_{}.txt'.format(audio_name)
 ACC_FILE = 'midi/{}.mid'.format(midi_name)
