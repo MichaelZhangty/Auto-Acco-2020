@@ -4,6 +4,8 @@
 .nyc_output
 **/.vscode
 node_modules
+midi
+audio
 coverage
 pitch
 auto_accompany
