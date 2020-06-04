@@ -4,7 +4,7 @@ Auto-Acco is a solution for automatically creating accompaniment for vocal perfo
 
 # Installation
 
-Use the package manager [pip](https://pip.pypa.io/en/stable/) to install Auto-Acco-2020.
+Use the package manager [pip2](https://pip.pypa.io/en/stable/) to install Auto-Acco-2020.
 
 # Usage
 
