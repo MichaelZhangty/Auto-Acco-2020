@@ -21,17 +21,19 @@ import statsmodels.api as sm
 from score_following_utilities import *
 
 # Rc parameter for each midi
-# zhui guang zhe
+# vineyard
+# Rc = 80
+# zhui guang zhe 2
 # Rc = 74
-# shuo san jiu san
+# shuo san jiu san 3
 # Rc = 70
-# nanshannan
+# nanshannan 4
 # Rc = 67
 
 # parameter to change
-audio_name = "audio3"
-midi_name  = "midi3"
-Rc = 70
+audio_name = "nanshanshan-gus-01"
+midi_name  = "midi4"
+Rc = 67
 score_end_time = 60
 
 
@@ -65,7 +67,7 @@ CONF_FILE = 'confidence/{}_confidence.txt'.format(audio_name)
 def score_follow(audio_file, midi_file, feature, mask):
     old_midi = pretty_midi.PrettyMIDI(MIDIFILE)
     # get midi tempo
-    midi_tempo = old_midi.estimate_tempo()
+    # midi_tempo = old_midi.estimate_tempo()
     new_midi = pretty_midi.PrettyMIDI()
     piano_program = pretty_midi.instrument_name_to_program('Acoustic Grand Piano')
     piano = pretty_midi.Instrument(program=piano_program)
@@ -284,6 +286,8 @@ def score_follow(audio_file, midi_file, feature, mask):
 
         print 'currently at %d' % cur_pos
         print 'cur_time %f' % cur_time
+        # print "real_time %f" % time.clock()
+        # print "origianl_time %f" % real_time
 
         matched_score.append(score_midi[cur_pos])
         time_axis.append(cur_time - performance_start_time)
@@ -310,10 +314,14 @@ def score_follow(audio_file, midi_file, feature, mask):
     plt.ylabel('score time (seconds)')
     plt.grid()
     plt.show()
+    
+    plt.save()
 
 
 
 if __name__ == "__main__":
+    # start real time
+    real_time = time.clock()
     score_follow(audio_file=AUDIOFILE, midi_file=MIDIFILE, feature='onset', mask=FILTER)
     # print "Beat list ----------------------"
     # print time_list_for_beat

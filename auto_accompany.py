@@ -1,5 +1,4 @@
 import time
-
 import threading
 from auto_accompany_utilities import *
 import fluidsynth
@@ -11,8 +10,8 @@ import matplotlib.pyplot as plt
 
 
 # name of the audio file
-audio_name = "audio3"
-midi_name = "midi3"
+audio_name = "nanshanshan-gus-01"
+midi_name = "midi4"
 end_time = 60
 
 
@@ -41,6 +40,7 @@ time_list_for_beat.pop(0)
 # Rc = 70
 # nanshannan
 # Rc = 67
+
 BPM = 74
 
 
@@ -175,6 +175,8 @@ class Player:
             latency_end = target_start_time
             while time.clock() < target_start_time:
                 pass
+            # print "--------------------------- wrong %f" %time.clock()
+
 
             self.playTimes.append(time.clock() - original_begin)
             self.noteTimes.append(note.start)
@@ -187,10 +189,10 @@ class Player:
             piano.notes.append(new_note)
 
             delta_time = note.end - (time.clock() - begin - total_delay)
+            # print "---------------------------correct %f" %time.clock()
             total_delay += delta_time * (tempo_ratio - 1)
             delta_time = delta_time * tempo_ratio
 
-            # self.fs.noteon(0, note.pitch, 100)
             target_time = time.clock() + delta_time
             latency_end = target_time
 
