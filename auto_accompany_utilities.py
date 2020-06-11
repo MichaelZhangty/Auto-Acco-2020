@@ -25,7 +25,7 @@ def compute_tempo_ratio_weighted(b0, t0, s0, l,timeQueue,beat_back,confidence_qu
     t1 = timeQueue[-1]
     b = b0 + (t1 + l - t0) * s0
     tn = t1 + l
-    print "latency l %f---------------------------------"%l
+    # print "latency l %f---------------------------------"%l
     bn = b
     te = timeQueue[-2]
     be = len(timeQueue) - 5
@@ -41,8 +41,8 @@ def compute_tempo_ratio_weighted(b0, t0, s0, l,timeQueue,beat_back,confidence_qu
         wls_model = sm.WLS(y, x, weights=confidence_block)
         results = wls_model.fit()
         se = results.params[1]
-    print "------------------------------sk-----------------------"
-    print se
+    # print "------------------------------sk-----------------------"
+    # print se
     sn = (float(4) / (te * se - tn * se - be + bn + 4)) * se
     return bn, tn, sn
 

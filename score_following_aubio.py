@@ -50,7 +50,7 @@ Rc = 70
 # MIDIFILE = os.path.join(DIRECTORY,'midi.mid')
 # PITCHFILE = os.path.join(DIRECTORY,'pitch.txt')
 
-plot = False
+plot = True
 FILTER = 'gate'
 gap_judge = False
 name = "3"

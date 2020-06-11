@@ -6,12 +6,20 @@ from scipy import stats
 import matplotlib.pyplot as plt
 
 
+# BPM parameter for each midi
+# zhui guang zhe
+# BPM = 74
+# shuo san jiu san
+# BPM = 70
+# nanshannan
+# BPM = 67
 
+BPM = 67
 
 
 # name of the audio file
-audio_name = "nanshanshan-gus-01"
-midi_name = "midi4"
+audio_name = "audio4"
+midi_name = "midi4_cut"
 end_time = 60
 
 
@@ -33,15 +41,7 @@ for item2 in confidence_lines:
 time_list_for_beat.pop(0)
 
 
-# Rc parameter for each midi
-# zhui guang zhe
-# Rc = 74
-# shuo san jiu san
-# Rc = 70
-# nanshannan
-# Rc = 67
 
-BPM = 74
 
 
 
@@ -167,6 +167,8 @@ class Player:
                 break
 
             tempo_ratio = float(self.BPS) / sQueue[-1]
+            # print sQueue
+            print "Tempo_ratio == %f" % tempo_ratio
             total_delay += wait_delta * (tempo_ratio-1)
             wait_delta = wait_delta * tempo_ratio
 

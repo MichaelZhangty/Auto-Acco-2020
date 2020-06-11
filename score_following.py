@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 import threading
 import pretty_midi
-import scikits.audiolab
+# import scikits.audiolab
 import pyaudio
-import analyse
+# import analyse
 import time
 import copy
 from scipy.integrate import quad
@@ -31,37 +31,47 @@ from score_following_utilities import *
 # Rc = 67
 
 # parameter to change
-audio_name = "nanshanshan-gus-01"
-midi_name  = "midi4"
-Rc = 67
-score_end_time = 60
+audio_name = "audio4"
+midi_name  = "midi4_cut"
+Rc = 70
+score_end_time = 120
+audio_end_time = 60
 
 
 
 performance_start_time = 0
 score_start_time = 0
 resolution = 0.01
-CHUNK = 1412
-time_int = float(1412) / 44100
+# CHUNK = 1412
+CHUNK = 1024
+time_int = float(CHUNK) / 44100
 alpha = 10
-plot = False
+plot = True
 FILTER = 'gate'
+aubio = True
+
 
 
 time_list_for_beat = [0]
 confidence_queue = []
 pitch_pos_list = [0]
 # tempo ratio bound
-temp_upbound = 1.3
-temp_downbound = 0.7
+temp_upbound = 1.2
+temp_downbound = 0.8
 
+# for debug 
+# tag_name = "aubio"
+# audio_name_save = audio_name + tag_name
 
+audio_name_save = audio_name
 # file to open and create 
 AUDIOFILE = 'audio/{}.wav'.format(audio_name)
 MIDIFILE = 'midi/{}.mid'.format(midi_name)
-PITCHFILE = 'pitch/pitch_{}.txt'.format(audio_name)
-NEWFILE = 'score_following/score_generated_{}.mid'.format(audio_name)
-CONF_FILE = 'confidence/{}_confidence.txt'.format(audio_name)
+PITCHFILE = 'pitch/pitch_{}.txt'.format(audio_name_save)
+NEWFILE = 'score_following/score_generated_{}.mid'.format(audio_name_save)
+# CONF_FILE = 'confidence/{}_confidence.txt'.format(audio_name_save)
+time_beat_name = "time_beat/time_beat_{}.txt".format(audio_name_save)
+confidence_name = "confidence/confidence_queue_{}.txt".format(audio_name_save)
 
 
 def score_follow(audio_file, midi_file, feature, mask):
@@ -82,7 +92,13 @@ def score_follow(audio_file, midi_file, feature, mask):
     fsource = np.zeros(scoreLen)
     confidence = np.zeros(scoreLen)
     pitchfile = np.zeros(scoreLen)
-    fsource[onsets[0]] = 1
+    # fsource[onsets[0]] = 1
+    # fix if position miss one, totally fail
+    # start from the beginning instead of first onset
+    fsource[0] = 1
+    # for check no movement
+    last_cur_pos = 0
+    no_move_flag = False
     old_pos = 0
     cur_pos = 0
     tempo_estimate_elapsed_time = 0
@@ -130,18 +146,24 @@ def score_follow(audio_file, midi_file, feature, mask):
     while wf.tell() < wf.getnframes():
         if plot:
             stream.write(data)
-        if len(datas) >= 3:
-            c_data = datas[-3:]
-            c_data = ''.join(c_data)
-        else:
-            c_data = data
+        # if len(datas) >= 3:
+        #     c_data = datas[-3:]
+        #     c_data = ''.join(c_data)
+        # else:
+        c_data = data
 
         # detect pitch 
-        pitch = pitch_detection(c_data)
+        if aubio:
+            pitch = pitch_detection_aubio(c_data)
+        
+        else:
+            pitch = pitch_detection(c_data)
+
         if pitch == -1: 
            raw_pitches.append(0)
         else:
            raw_pitches.append(pitch)
+
         data = wf.readframes(CHUNK)
         datas.append(data)
 
@@ -152,21 +174,29 @@ def score_follow(audio_file, midi_file, feature, mask):
             tempo_estimate_elapsed_time2 += time_int
         cur_time += time_int
 
-        if cur_time > score_end_time:
+        if cur_time > audio_end_time:
             break
-    
-        pitch = pitch - int(pitch) / 12 * 12
-        print 'detected pitch is %f' % pitch
+
+        # print("before detected pitch is " + str(pitch))
+
+        # fix no sound bug
+        if pitch == -1:
+            pitch = 0
+        else:
+            pitch = pitch - int(pitch) / 12 * 12
+        # print 'detected pitch is %f' % pitch
+        print("detected pitch is" + str(pitch))
         pitches.append(pitch)
 
         detected_pitches.append(-pitch)
         firstReadingFlag = False
         elapsed_time = cur_time - old_time
+        print("cur_time is" + str(cur_time))
         tempo = estimated_tempo
 
         # record the beat time
         if tempo * tempo_estimate_elapsed_time2 > 1 * Rc:
-            print "bigger than one RC"
+            # print "bigger than one RC"
             confidence_record_check = 1
             # pos_list.append(cur_pos) # only use for dtw
             # tempo_estimate_elapsed_time2 is performance time
@@ -174,8 +204,9 @@ def score_follow(audio_file, midi_file, feature, mask):
 
         # tempo_follow change every two beats
         if tempo * tempo_estimate_elapsed_time > 2 * Rc:
-            print "tempo changed"
-            tempo = tempo_estimate(tempo_estimate_elapsed_time, cur_pos, old_pos)
+            # print "tempo changed"
+            tempo = tempo_estimate(tempo_estimate_elapsed_time, cur_pos, old_pos,Rc)
+            # with bound for tempo
             if tempo / float(Rc) < temp_downbound:
                 tempo = Rc * temp_downbound
             elif tempo / float(Rc) > temp_upbound:
@@ -184,7 +215,9 @@ def score_follow(audio_file, midi_file, feature, mask):
             estimated_tempo = tempo
             old_pos = cur_pos
 
-        print 'tempo %f' % tempo
+        # print 'tempo %f' % tempo
+        print("tempo"+str(tempo))
+        print("current pos" + str(cur_pos))
 
         if int((cur_time) / 0.01) < len(audio_onsets):
             onset_prob = audio_onsets[int((cur_time) / 0.01)]
@@ -205,10 +238,13 @@ def score_follow(audio_file, midi_file, feature, mask):
             w3 = 0.3
 
 
-
-        f_I_J_given_D = compute_f_I_J_given_D(score_axis, tempo, elapsed_time, beta,alpha,Rc)
+        # print("after figivend cur pos is"+str(cur_pos))
+        f_I_J_given_D = compute_f_I_J_given_D(score_axis, tempo, elapsed_time, beta,alpha,Rc,no_move_flag)
         f_I_given_D = compute_f_I_given_D(fsource, f_I_J_given_D, cur_pos, scoreLen)
+        if no_move_flag:
+            f_I_given_D = fsource
         cur_pos = np.argmax(f_I_given_D)
+        # print("after figivend cur pos is"+str(cur_pos))
 
         # F_V_give_I is the p(o|st)
         # F_I_give_D is the p(st)
@@ -217,7 +253,9 @@ def score_follow(audio_file, midi_file, feature, mask):
         f_V_given_I, sims = compute_f_V_given_I(pitch, pitches, scoreLen, score_midi, onset_prob, score_onsets, alpha,
                                                 feature, w1, w2, w3)
 
-        fsource = f_V_given_I * f_I_given_D[:scoreLen]
+        # fsource = f_V_given_I * f_I_given_D[:scoreLen]
+        fsource = f_V_given_I * f_I_given_D
+
         if mask == 'gaussian':
             gaussian_mask = create_gaussian_mask(cur_pos, score_end_time, resolution)
             fsource = fsource * gaussian_mask
@@ -228,6 +266,12 @@ def score_follow(audio_file, midi_file, feature, mask):
 
         fsource = fsource / sum(fsource)
         cur_pos = np.argmax(fsource)
+        # check for movement
+        if pitch == 0 and score_midi[cur_pos]!=0:
+            no_move_flag = True
+        else:
+            no_move_flag = False
+        last_cur_pos = cur_pos
         # print "check -------"
         # print fsource[cur_pos]
         # print f_I_given_D[cur_pos]
@@ -284,8 +328,10 @@ def score_follow(audio_file, midi_file, feature, mask):
             confidence_queue.append(confidence[int(cur_time / resolution)])
             confidence_record_check = 0
 
-        print 'currently at %d' % cur_pos
-        print 'cur_time %f' % cur_time
+        # print 'currently at %d' % cur_pos
+        # print 'cur_time %f' % cur_time
+        print("currenly at"+str(cur_pos))
+        print("cur_time " + str(cur_time))
         # print "real_time %f" % time.clock()
         # print "origianl_time %f" % real_time
 
@@ -296,7 +342,7 @@ def score_follow(audio_file, midi_file, feature, mask):
 
     new_midi.instruments.append(piano)
     new_midi.write(NEWFILE)
-    np.savetxt(CONF_FILE, confidence)
+    # np.savetxt(CONF_FILE, confidence)
     np.savetxt(PITCHFILE, pitchfile)
     score_plt = [min(-x / 5, 0) for x in score_midi]
     fig = plt.figure()
@@ -315,20 +361,17 @@ def score_follow(audio_file, midi_file, feature, mask):
     plt.grid()
     plt.show()
     
-    plt.save()
 
 
 
 if __name__ == "__main__":
     # start real time
-    real_time = time.clock()
+    # real_time = time.clock()
     score_follow(audio_file=AUDIOFILE, midi_file=MIDIFILE, feature='onset', mask=FILTER)
     # print "Beat list ----------------------"
     # print time_list_for_beat
     # print "confidence_list -------------------------"
     # print confidence_queue
-    time_beat_name = "time_beat/time_beat_{}.txt".format(audio_name)
-    confidence_name = "confidence/confidence_queue_{}.txt".format(audio_name)
     time_beat_file = open(time_beat_name, 'w')
     confidence_queue_file = open(confidence_name, 'w')
     for item in time_list_for_beat:

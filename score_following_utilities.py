@@ -4,7 +4,8 @@ import pretty_midi
 import analyse
 from madmom.features.onsets import CNNOnsetProcessor
 from scipy.integrate import quad
-
+import aubio
+import matplotlib.pyplot as plt
 
 def normpdf(x, mean, sd=1):
     var = float(sd) ** 2
@@ -59,26 +60,44 @@ def compute_f_V_given_I(pitch, pitches, scoreLen, score_midi, onset_prob, score_
 std=1,WINSIZE = 1,WEIGHT=[0.5]):
     f_V_given_I = np.zeros(scoreLen)
     sims = np.zeros(scoreLen)
-
-    if len(pitches) > WINSIZE:
+    # print("before pitch is " + str(pitch))
+    # print(pitches[-1-WINSIZE:-1])
+    # print(WEIGHT)
+    if pitch == 0:
+        pitch = pitch
+    elif len(pitches) > WINSIZE:
         pitch = pitch - np.dot(pitches[-1 - WINSIZE:-1], WEIGHT)
-    elif len(pitches) > 1:
-        pitch = pitch - float(sum(pitches[:-1])) / (len(pitches) - 1)
-    else:
-        pitch = 0
+    # elif len(pitches) > 1:
+    #     pitch = pitch - float(sum(pitches[:-1])) / (len(pitches) - 1)
+    # else:
+    #     pitch = 0
+
+    # print("after pitch is "+str(pitch))
 
     for i in range(scoreLen):
 
-        if i >= WINSIZE:
+        # if score_midi[i] == 0:
+        #     score_pitch = 0
+        if pitch == 0:
+            score_pitch = score_midi[i]
+        elif i >= WINSIZE:
             score_pitch = score_midi[i] - np.dot(score_midi[i - WINSIZE:i], WEIGHT)
-        elif i > 0:
-            score_pitch = score_midi[i] - float(sum(score_midi[:i])) / i
+        # elif i > 0:
+        #     score_pitch = score_midi[i] - float(sum(score_midi[:i])) / i
         else:
-            score_pitch = 0
+            score_pitch = score_midi[i]
 
         score_onset = score_onsets[i]
         if feature == 'onset':
-            if abs(pitch-score_pitch)<6:
+            # for fix no sound bug
+            if pitch == 0:
+                if score_pitch == 0:
+                    f_V_given_I[i] = 0.1
+                else:
+                    f_V_given_I[i] = 0.00000000001
+            elif score_pitch == 0:
+                f_V_given_I[i] = 0.00000000001
+            elif abs(pitch-score_pitch)<6:
                 f_V_given_I[i] = math.pow(
                 math.pow(normpdf(pitch, score_pitch, std), w1) * math.pow(similarity(onset_prob, score_onset), w2), w3)
             else:
@@ -95,13 +114,15 @@ std=1,WINSIZE = 1,WEIGHT=[0.5]):
             f_V_given_I[i] = normpdf(pitch, score_pitch, std)
         sims[i] = similarity(onset_prob, score_onset)
 
-    # plt.plot(f_V_given_I)
+    # plt.plot(f_V_given_I[:50])
     # plt.show()
 
     return f_V_given_I, sims
 
 
-def compute_f_I_J_given_D(score_axis, estimated_tempo, elapsed_time, beta,alpha,Rc):
+def compute_f_I_J_given_D(score_axis, estimated_tempo, elapsed_time, beta,alpha,Rc,no_move_flag):
+    if no_move_flag:
+        print("no move")
     if estimated_tempo > 0:
         rateRatio = float(Rc) / float(estimated_tempo)
     else:
@@ -113,8 +134,10 @@ def compute_f_I_J_given_D(score_axis, estimated_tempo, elapsed_time, beta,alpha,
     tmp2 = np.exp(-tmp2 * tmp2 / (2 * sigmaSquare))
     distribution = tmp1 * tmp2
     distribution[score_axis <= 0] = 0
+
     distribution = distribution / sum(distribution)
-    # plt.plot(distribution)
+    # for debug
+    # plt.plot(distribution[:15])
     # plt.show()
     return distribution
 
@@ -126,15 +149,30 @@ def pitch_detection(data):
         return pitch
     else:
         return -1
+CHUNK = 1024
+# CHUNK = 1412
+pitch_detector = aubio.pitch('yinfft', CHUNK, CHUNK, 44100)
+pitch_detector.set_unit('midi')
+pitch_detector.set_tolerance(0.75)
 
-def tempo_estimate(elapsed_time, cur_pos, old_pos,Rc=1,resolution=0.01):
+def pitch_detection_aubio(data):
+    samps = np.fromstring(data, dtype=np.int16)
+    samps = np.true_divide(samps, 32768, dtype=np.float32)
+    pitch = pitch_detector(samps)[0]
+    if pitch > 84 or pitch < 40:
+        return -1
+    else:
+        return pitch
+
+def tempo_estimate(elapsed_time, cur_pos, old_pos,Rc,resolution=0.01):
     # print 'cur pos %d old pos %d'%(cur_pos,old_pos)
     # print 'elapsed_time %f'%elapsed_time
     return float(cur_pos - old_pos) * Rc * resolution / elapsed_time
 
+window_size = 1000
 def compute_f_I_given_D(fsource, f_I_J_given_D, cur_pos, scoreLen):
-    left = max(0, cur_pos - 1000)
-    right = min(scoreLen, cur_pos + 1000)
+    left = max(0, cur_pos - window_size)
+    right = min(scoreLen, cur_pos + window_size)
     f_I_given_D = np.zeros(scoreLen)
     fsource_w = fsource[left:right]
     f_I_J_given_D_w = f_I_J_given_D[:right - left]
@@ -145,6 +183,10 @@ def compute_f_I_given_D(fsource, f_I_J_given_D, cur_pos, scoreLen):
     else:
         end = left + len(f_I_given_D_w)
     f_I_given_D[left:end] = f_I_given_D_w[:(end - left)]
+    # plt.plot(f_I_given_D[:50])
+    # plt.show()
+    # plt.plot(fsource[:50])
+    # plt.show()
     return f_I_given_D
 
 # need to refine (Fake real time)
