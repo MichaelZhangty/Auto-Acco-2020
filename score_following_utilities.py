@@ -23,7 +23,9 @@ def get_time_axis(resolution, start_time, end_time, filename):
     if abs(axis_end_time - end_time) > 1e-5:
         axis = np.concatenate((axis, [end_time]))
     scoreLen = len(axis)
-    score_midi = np.zeros(scoreLen)
+    # score_midi = np.zeros(scoreLen)
+    # to differeniate real pitch 0 and no sound
+    score_midi = np.full(scoreLen,-1)
     midi_data = pretty_midi.PrettyMIDI(filename)
     score_onsets = np.zeros(scoreLen)
     onsets = []
@@ -37,6 +39,8 @@ def get_time_axis(resolution, start_time, end_time, filename):
             if j < len(score_midi):
                 # regulate to 12 pitch
                 score_midi[j] = note.pitch - note.pitch / 12 * 12
+                # norma pitch
+                # score_midi[j] = note.pitch
     # plot to check
     # plt.plot(score_onsets)
     # plt.show()
@@ -58,27 +62,21 @@ def similarity(onset_prob, score_onset):
 
 def compute_f_V_given_I(pitch, pitches, scoreLen, score_midi, onset_prob, score_onsets, alpha, feature, w1, w2, w3,
 std=1,WINSIZE = 1,WEIGHT=[0.5]):
+    # weight = 0.5 original
+    # try with 1
     f_V_given_I = np.zeros(scoreLen)
     sims = np.zeros(scoreLen)
-    # print("before pitch is " + str(pitch))
-    # print(pitches[-1-WINSIZE:-1])
-    # print(WEIGHT)
-    if pitch == 0:
-        pitch = pitch
+    if pitch == -1:
+        pitch = -1
     elif len(pitches) > WINSIZE:
         pitch = pitch - np.dot(pitches[-1 - WINSIZE:-1], WEIGHT)
-    # elif len(pitches) > 1:
-    #     pitch = pitch - float(sum(pitches[:-1])) / (len(pitches) - 1)
-    # else:
-    #     pitch = 0
-
-    # print("after pitch is "+str(pitch))
-
+  
+    # to check for two tempo at most per pitch
+    # each i represent 0.01s
+   
     for i in range(scoreLen):
 
-        # if score_midi[i] == 0:
-        #     score_pitch = 0
-        if pitch == 0:
+        if pitch == -1 or score_midi[i] == -1:
             score_pitch = score_midi[i]
         elif i >= WINSIZE:
             score_pitch = score_midi[i] - np.dot(score_midi[i - WINSIZE:i], WEIGHT)
@@ -90,19 +88,24 @@ std=1,WINSIZE = 1,WEIGHT=[0.5]):
         score_onset = score_onsets[i]
         if feature == 'onset':
             # for fix no sound bug
-            if pitch == 0:
-                if score_pitch == 0:
+            if pitch == -1:
+                if score_pitch == -1:
                     f_V_given_I[i] = 0.1
                 else:
                     f_V_given_I[i] = 0.00000000001
-            elif score_pitch == 0:
+            elif score_pitch == -1:
                 f_V_given_I[i] = 0.00000000001
-            elif abs(pitch-score_pitch)<6:
+            else:
+                # fix module 12 problem about bounds
+                # let's assume pitch will not vary too much in short time
+                pitch_reverse = 12 - pitch
+                if abs(pitch-score_pitch) > abs(pitch_reverse-score_pitch):
+                    pitch = pitch_reverse
                 f_V_given_I[i] = math.pow(
                 math.pow(normpdf(pitch, score_pitch, std), w1) * math.pow(similarity(onset_prob, score_onset), w2), w3)
-            else:
+            # else:
             # f_V_given_I[i] = normpdf(pitch, score_pitch, std)
-                f_V_given_I[i] =  similarity(onset_prob,score_onset)
+                # f_V_given_I[i] =  similarity(onset_prob,score_onset)
         elif feature == 'uniform':
             f_V_given_I[i] = 1
         elif feature == 'only':
@@ -149,13 +152,14 @@ def pitch_detection(data):
         return pitch
     else:
         return -1
-CHUNK = 1024
-# CHUNK = 1412
-pitch_detector = aubio.pitch('yinfft', CHUNK, CHUNK, 44100)
-pitch_detector.set_unit('midi')
-pitch_detector.set_tolerance(0.75)
 
-def pitch_detection_aubio(data):
+
+def pitch_detection_aubio(data,size):
+    CHUNK = 1024
+    # CHUNK = 1412
+    pitch_detector = aubio.pitch('yinfft', CHUNK*size, CHUNK*size, 44100)
+    pitch_detector.set_unit('midi')
+    pitch_detector.set_tolerance(0.75)
     samps = np.fromstring(data, dtype=np.int16)
     samps = np.true_divide(samps, 32768, dtype=np.float32)
     pitch = pitch_detector(samps)[0]
