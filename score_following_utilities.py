@@ -6,6 +6,7 @@ from madmom.features.onsets import CNNOnsetProcessor
 from scipy.integrate import quad
 import aubio
 import matplotlib.pyplot as plt
+import wave
 
 def normpdf(x, mean, sd=1):
     var = float(sd) ** 2
@@ -26,6 +27,7 @@ def get_time_axis(resolution, start_time, end_time, filename):
     # score_midi = np.zeros(scoreLen)
     # to differeniate real pitch 0 and no sound
     score_midi = np.full(scoreLen,-1)
+    raw_score_midi = np.full(scoreLen,-1)
     midi_data = pretty_midi.PrettyMIDI(filename)
     score_onsets = np.zeros(scoreLen)
     onsets = []
@@ -40,11 +42,11 @@ def get_time_axis(resolution, start_time, end_time, filename):
                 # regulate to 12 pitch
                 score_midi[j] = note.pitch - note.pitch / 12 * 12
                 # norma pitch
-                # score_midi[j] = note.pitch
+                raw_score_midi[j] = note.pitch
     # plot to check
     # plt.plot(score_onsets)
     # plt.show()
-    return score_midi, axis, score_onsets, onsets
+    return score_midi, axis, score_onsets, onsets, raw_score_midi
 
 def diff(score):
     diff_score = np.zeros(len(score))
@@ -63,13 +65,34 @@ def similarity(onset_prob, score_onset):
 def compute_f_V_given_I(pitch, pitches, scoreLen, score_midi, onset_prob, score_onsets, alpha, feature, w1, w2, w3,
 std=1,WINSIZE = 1,WEIGHT=[0.5]):
     # weight = 0.5 original
-    # try with 1
+    reverse_judge = False
     f_V_given_I = np.zeros(scoreLen)
     sims = np.zeros(scoreLen)
+    # if pitch == -1:
+    #     pitch = -1
+    # else:
+    #     pitch = pitch - int(pitch) / 12 * 12
+    # after module 12 
     if pitch == -1:
         pitch = -1
     elif len(pitches) > WINSIZE:
+        # pitch_gap = pitch - np.dot(pitches[-1 - WINSIZE:-1], WINSIZE)
+        if pitch > 11.5:
+            pitch_reverse = pitch - 12
+            pitch_reverse = pitch_reverse - np.dot(pitches[-1 - WINSIZE:-1], WEIGHT)
+            reverse_judge = True
+            print("pitch_reverse"+str(pitch_reverse))
+        elif pitch < 0.5:
+            pitch_reverse = pitch + 12
+            pitch_reverse = pitch_reverse - np.dot(pitches[-1 - WINSIZE:-1], WEIGHT)
+            reverse_judge = True
+            print("pitch_reverse"+str(pitch_reverse))
         pitch = pitch - np.dot(pitches[-1 - WINSIZE:-1], WEIGHT)
+        
+                
+    # else:
+    #     pitch = pitch - int(pitch) / 12 * 12
+
   
     # to check for two tempo at most per pitch
     # each i represent 0.01s
@@ -98,8 +121,7 @@ std=1,WINSIZE = 1,WEIGHT=[0.5]):
             else:
                 # fix module 12 problem about bounds
                 # let's assume pitch will not vary too much in short time
-                pitch_reverse = 12 - pitch
-                if abs(pitch-score_pitch) > abs(pitch_reverse-score_pitch):
+                if reverse_judge and abs(pitch-score_pitch) > abs(pitch_reverse-score_pitch):
                     pitch = pitch_reverse
                 f_V_given_I[i] = math.pow(
                 math.pow(normpdf(pitch, score_pitch, std), w1) * math.pow(similarity(onset_prob, score_onset), w2), w3)
@@ -247,4 +269,46 @@ def create_gate_mask(cur_pos, scoreLen):
     # plt.show()source
     return mask
 
+def plot_onsets_prob_aubio(onset_audio_file, scoreLen):
+    # audio_onsets =plot_score(plot_audio_file = onset_audio_file)
+    # proc = CNNOnsetProcessor()
+    # audio_onsets = proc(onset_audio_file)
+    # plt.plot(audio_onsets)
+    # plt.show()
+    CHUNK = 1024
+    resolution = 0.01
+    wf = wave.open(onset_audio_file, 'rb')
+    onset_detector = aubio.onset("default", CHUNK, CHUNK, 44100)
+    onsets = []
+    while wf.tell() < wf.getnframes():
+        data = wf.readframes(CHUNK)
+        data = np.fromstring(data, dtype=np.int16)
+        data = np.true_divide(data, 32768, dtype=np.float32)
+        if len(data) == 1024 and onset_detector(data):
+            onsets.append(onset_detector.get_last() / 44100)
+    wf.close()
+    audio_onsets = np.zeros((scoreLen,))
+    for onset in onsets:
+        if int(onset/resolution)<scoreLen:
+            audio_onsets[int(onset / resolution)] = 1
+
+    # plt.plot(audio_onsets)
+    # plt.show()
+
+    # wing_size = 20
+    # sd = 20
+    # kernel = []
+    # for x in range(-wing_size, wing_size + 1):
+    #     kernel.append(normpdf(x, 0, sd))
+
+    # plt.plot(kernel)
+    # plt.show()
+
+    # audio_onsets = np.convolve(audio_onsets, kernel)
+    # audio_onsets = audio_onsets[wing_size:-wing_size]
+
+    # plt.plot(audio_onsets)
+    # plt.show()
+
+    return audio_onsets
     

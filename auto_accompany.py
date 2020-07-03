@@ -14,12 +14,12 @@ import matplotlib.pyplot as plt
 # nanshannan
 # BPM = 67
 
-BPM = 70
+BPM = 67
 
 
 # name of the audio file
-audio_name = "shuosanjiusan_gus_6_9"
-midi_name = "midi3"
+audio_name = "audio4"
+midi_name = "midi4_quick"
 end_time = 60
 
 
