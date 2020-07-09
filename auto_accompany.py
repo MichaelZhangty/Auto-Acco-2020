@@ -75,6 +75,7 @@ def press_key_thread():
                  abs(time.clock() - original_begin - simulation_times[cnt])) <= 0.003 or time.clock() - original_begin >= \
                  simulation_times[cnt]:
             timeQueue.append(time.clock() - original_begin)
+            print("new_time_come_in" + str(timeQueue[-1]))
             cnt = cnt + 1 
             if len(timeQueue) == 5:
                 if weight_judge:
@@ -201,6 +202,7 @@ class Player:
             while time.clock() < target_time:
                 pass
             # self.fs.noteoff(0, note.pitch)
+            print("acco_time" + str(time.clock()))
 
             # for count for long break
             old_target_start_time = target_start_time + 0

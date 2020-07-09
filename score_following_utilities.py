@@ -62,7 +62,7 @@ def similarity(onset_prob, score_onset):
     return sim
 
 
-def compute_f_V_given_I(pitch, pitches, scoreLen, score_midi, onset_prob, score_onsets, alpha, feature, w1, w2, w3,
+def compute_f_V_given_I(pitch, pitches, scoreLen, score_midi, onset_prob, score_onsets, alpha, feature, w1, w2, w3,cur_pos,
 std=1,WINSIZE = 1,WEIGHT=[0.5]):
     # weight = 0.5 original
     reverse_judge = False
@@ -81,12 +81,12 @@ std=1,WINSIZE = 1,WEIGHT=[0.5]):
             pitch_reverse = pitch - 12
             pitch_reverse = pitch_reverse - np.dot(pitches[-1 - WINSIZE:-1], WEIGHT)
             reverse_judge = True
-            print("pitch_reverse"+str(pitch_reverse))
+            # print("pitch_reverse"+str(pitch_reverse))
         elif pitch < 0.5:
             pitch_reverse = pitch + 12
             pitch_reverse = pitch_reverse - np.dot(pitches[-1 - WINSIZE:-1], WEIGHT)
             reverse_judge = True
-            print("pitch_reverse"+str(pitch_reverse))
+            # print("pitch_reverse"+str(pitch_reverse))
         pitch = pitch - np.dot(pitches[-1 - WINSIZE:-1], WEIGHT)
         
                 
@@ -96,8 +96,11 @@ std=1,WINSIZE = 1,WEIGHT=[0.5]):
   
     # to check for two tempo at most per pitch
     # each i represent 0.01s
+    window_size = 500
+    left = max(0, cur_pos - window_size)
+    right = min(scoreLen, cur_pos + window_size)
    
-    for i in range(scoreLen):
+    for i in range(left,right):
 
         if pitch == -1 or score_midi[i] == -1:
             score_pitch = score_midi[i]
@@ -146,8 +149,8 @@ std=1,WINSIZE = 1,WEIGHT=[0.5]):
 
 
 def compute_f_I_J_given_D(score_axis, estimated_tempo, elapsed_time, beta,alpha,Rc,no_move_flag):
-    if no_move_flag:
-        print("no move")
+    # if no_move_flag:
+    #     print("no move")
     if estimated_tempo > 0:
         rateRatio = float(Rc) / float(estimated_tempo)
     else:

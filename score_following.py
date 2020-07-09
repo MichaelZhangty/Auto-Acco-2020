@@ -19,7 +19,7 @@ import os
 import librosa
 import statsmodels.api as sm
 from score_following_utilities import *
-
+import aubio
 # Rc parameter for each midi
 # vineyard
 # Rc = 80
@@ -39,7 +39,6 @@ audio_end_time = 60
 
 
 
-
 performance_start_time = 0
 score_start_time = 0
 resolution = 0.01
@@ -47,11 +46,11 @@ resolution = 0.01
 CHUNK = 1024
 time_int = float(CHUNK) / 44100
 alpha = 10
-plot = False
+plot = True
 FILTER = 'gate'
-aubio = True
+aubio_pitch = True
 aubio_onset = True
-plot_position = 2500
+plot_position = 0
 onset_help = False
 
 
@@ -86,6 +85,7 @@ def score_follow(audio_file, midi_file, feature, mask):
     piano = pretty_midi.Instrument(program=piano_program)
     score_midi, score_axis, score_onsets, onsets, raw_score_midi = get_time_axis(resolution, score_start_time, score_end_time,
                                                                  midi_file)
+    print(score_axis)
     onset_idx = 0
     pitches = []
     mapped_onset_times = []
@@ -125,13 +125,13 @@ def score_follow(audio_file, midi_file, feature, mask):
     data = wf.readframes(CHUNK)
 
     # get audio onset 
-    if feature == 'onset':
-        if aubio_onset:
-            audio_onsets = plot_onsets_prob_aubio(audio_file,scoreLen)
-        else:
-            audio_onsets = plot_onsets_prob(audio_file, scoreLen)
-    else:
-        audio_onsets = np.zeros(scoreLen)
+    # if feature == 'onset':
+    #     if aubio_onset:
+    #         audio_onsets = plot_onsets_prob_aubio(audio_file,scoreLen)
+    #     else:
+    #         audio_onsets = plot_onsets_prob(audio_file, scoreLen)
+    # else:
+    #     audio_onsets = np.zeros(scoreLen)
 
     '''
     plt.plot(audio_onsets)
@@ -147,6 +147,7 @@ def score_follow(audio_file, midi_file, feature, mask):
     # change score_midi to make every pitch last for at most 1.5s
     temp_pitch = 0
     count = 1
+    onset_detector = aubio.onset("default", CHUNK, CHUNK, 44100)
     for i in range(len(score_midi)):
         if score_midi[i] == temp_pitch:
             count += 1
@@ -160,7 +161,14 @@ def score_follow(audio_file, midi_file, feature, mask):
     #44100 
     #1412 0.03s
     #0.09s
+    start_time = time.clock()
+    count_cut = 1 
     while wf.tell() < wf.getnframes():
+        while time.clock() - start_time < count_cut * time_int:
+            pass
+        count_cut += 1
+        # start_time = time.clock()
+        # print("begin_time" + str(time.clock()))
         if plot and cur_pos > plot_position:
             stream.write(data)
         if len(datas) >= 3:
@@ -170,7 +178,7 @@ def score_follow(audio_file, midi_file, feature, mask):
             c_data = data
 
         # detect pitch 
-        if aubio:
+        if aubio_pitch:
             if len(datas) >= 3:
                 pitch = pitch_detection_aubio(c_data,3)
             else:
@@ -182,6 +190,14 @@ def score_follow(audio_file, midi_file, feature, mask):
            raw_pitches.append(-1)
         else:
            raw_pitches.append(pitch)
+        
+        # print("pitch_detected"+str(time.clock()))
+
+        data_onset = np.fromstring(data, dtype=np.int16)
+        data_onset = np.true_divide(data_onset, 32768, dtype=np.float32)
+        if len(data_onset) == 1024 and onset_detector(data_onset):
+            onset_prob = onset_detector.get_last() / 44100
+
 
         data = wf.readframes(CHUNK)
         datas.append(data)
@@ -241,10 +257,13 @@ def score_follow(audio_file, midi_file, feature, mask):
         # print("tempo"+str(tempo))
         # print("current pos" + str(cur_pos))
 
-        if int((cur_time) / 0.01) < len(audio_onsets):
-            onset_prob = audio_onsets[int((cur_time) / 0.01)]
-        else:
-            onset_prob = 0
+
+        
+
+        # if int((cur_time) / 0.01) < len(audio_onsets):
+        #     onset_prob = audio_onsets[int((cur_time) / 0.01)]
+        # else:
+        #     onset_prob = 0
 
         # confidence > 0.1, pitch weight more 
         # orgianl set w1 = 0.95 w2 = 0.05 w3 = 0.5
@@ -262,11 +281,14 @@ def score_follow(audio_file, midi_file, feature, mask):
 
 
         # print("after figivend cur pos is"+str(cur_pos))
+        # print("set up before calculate"+str(time.clock()))
         f_I_J_given_D = compute_f_I_J_given_D(score_axis, tempo, elapsed_time, beta,alpha,Rc,no_move_flag)
+        # print("compute delta" + str(time.clock()))
         f_I_given_D = compute_f_I_given_D(fsource, f_I_J_given_D, cur_pos, scoreLen)
         if no_move_flag:
             f_I_given_D = fsource
         cur_pos = np.argmax(f_I_given_D)
+        # print("move delta for p(ot)"+str(time.clock()))
         # print("after figivend cur pos is"+str(cur_pos))
 
         # F_V_give_I is the p(o|st)
@@ -274,10 +296,12 @@ def score_follow(audio_file, midi_file, feature, mask):
         # f_source = p(st+1)
 
         f_V_given_I, sims = compute_f_V_given_I(pitch, pitches, scoreLen, score_midi, onset_prob, score_onsets, alpha,
-                                                feature, w1, w2, w3)
+                                                feature, w1, w2, w3,cur_pos)
+        # print("compute observation" + str(time.clock()))
 
         # fsource = f_V_given_I * f_I_given_D[:scoreLen]
         fsource = f_V_given_I * f_I_given_D
+        # print("compute po" + str(time.clock()))
 
         if mask == 'gaussian':
             gaussian_mask = create_gaussian_mask(cur_pos, score_end_time, resolution)
@@ -289,17 +313,18 @@ def score_follow(audio_file, midi_file, feature, mask):
 
         fsource = fsource / sum(fsource)
         cur_pos = np.argmax(fsource)
+        # print("compute final position" + str(time.clock()))
         # if cur pitch is not onset
         # It go at most the position before next onset
-        print("onset_prob: "+str(onset_prob))
-        print("onset_idx: " + str(onsets[onset_idx]))
+        # print("onset_prob: "+str(onset_prob))
+        # print("onset_idx: " + str(onsets[onset_idx]))
 
         # onset < 0.01
 
         if onset_help and onset_prob < 0.01 and cur_pos >= onsets[onset_idx]:
             cur_pos = last_cur_pos
             fsource = fsource_last
-            print("help onset judge --------")
+            # print("help onset judge --------")
             # cur_pos = onsets[onset_idx] - 1
         else:
             last_cur_pos = cur_pos
@@ -329,7 +354,6 @@ def score_follow(audio_file, midi_file, feature, mask):
                 y2 = f_I_given_D[start:end]
                 y3 = f_V_given_I[start:end]
                 y4 = score_midi[start:end]
-                y5 = audio_onsets[start:end]
                 for k in range(start,end):
                     x.append(k*resolution)                
                 fig=plt.figure()
@@ -344,8 +368,6 @@ def score_follow(audio_file, midi_file, feature, mask):
                 plt.plot(x,y3, 'tab:green')
                 ax4 = plt.subplot(514)
                 plt.plot(x,y4, 'tab:red')
-                ax5 = plt.subplot(515)
-                plt.plot(x,y5,'tab:blue')
                 plt.xlabel('Time in score {} pitch is {}'.format(cur_pos*resolution,pitch))
                 plt.show()
 
@@ -375,12 +397,12 @@ def score_follow(audio_file, midi_file, feature, mask):
             confidence_queue.append(confidence[int(cur_time / resolution)])
             confidence_record_check = 0
 
-        print 'currently at %d' % cur_pos
+        # print 'currently at %d' % cur_pos
         # print 'cur_time %f' % cur_time
         # print("currenly at"+str(cur_pos))
         print("cur_time " + str(cur_time))
         # print("cur_midipitch" + str(score_midi[cur_pos]))
-        # print "real_time %f" % time.clock()
+        print "end_time %f" % (float(time.clock())-float(start_time))
         # print "origianl_time %f" % real_time
 
         matched_score.append(score_midi[cur_pos])
@@ -389,7 +411,7 @@ def score_follow(audio_file, midi_file, feature, mask):
         tempos.append(tempo)
 
     new_midi.instruments.append(piano)
-    new_midi.write(NEWFILE)
+    new_midi.write(NEWFILE) 
     # np.savetxt(CONF_FILE, confidence)
     np.savetxt(PITCHFILE, pitchfile)
     score_plt = [min(-x / 5, 0) for x in score_midi]
