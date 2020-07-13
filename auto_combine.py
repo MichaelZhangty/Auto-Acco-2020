@@ -13,34 +13,22 @@ from auto_acco_combine_utilities import *
 # BPM = 70
 # nanshannan
 # BPM = 67
-
 BPM = 67
+Rc = 67
 
 
 # name of the audio file
 audio_name = "audio2"
 midi_name = "midi2"
+# performance end_time
 end_time = 20
+# audio end time
+audio_end_time = 20
+audio_file = 'audio/{}.wav'.format(audio_name)
+midi_file = 'midi/{}.mid'.format(midi_name)
 
 
-# time_beat_file = 'time_beat/time_beat_{}.txt'.format(audio_name)
-# confidence_file = 'confidence/confidence_queue_{}.txt'.format(audio_name)
 ACC_FILE = 'midi/{}.mid'.format(midi_name)
-
-
-# time_beat_file = open(time_beat_file, 'r')
-# confidence_queue_file = open(confidence_file, 'r')
-# beat_lines = time_beat_file.readlines()
-# confidence_lines = confidence_queue_file.readlines()
-# time_list_for_beat = []
-# confidence_queue = [0.001, 0.001, 0.001, 0.001, 0.001]
-# for item in beat_lines:
-#     time_list_for_beat.append(float(item))
-# for item2 in confidence_lines:
-#     confidence_queue.append(float(item2))
-# time_list_for_beat.pop(0)
-
-
 BPS = BPM / float(60)  # beat per second
 original_begin = time.clock()
 global_tempo = 0
@@ -51,22 +39,11 @@ beat_back = 4
 pressed_key = "lol"
 timeQueue = []
 stop_thread = False
-# sQueue = []
 latency_end = -1
-
-audio_end_time = 20
-Rc = 67
 resolution = 0.01
 sQueue = [1]
-audio_name = "audio2"
-AUDIOFILE = 'audio/{}.wav'.format(audio_name)
-midi_name = "midi2"
-MIDIFILE = 'midi/{}.mid'.format(midi_name)
-midi_file = MIDIFILE
-audio_file = AUDIOFILE
 score_midi, score_axis, score_onsets, onsets, raw_score_midi = get_time_axis(resolution,midi_file)
 score_midi = score_midi_modification(score_midi)
-# print(score_midi)
 scoreLen = len(score_axis)
 fsource = np.zeros(scoreLen)
 confidence = np.zeros(scoreLen)
@@ -80,13 +57,12 @@ stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
                     output=True)
 n_frames = int(performance_start_time * wf.getframerate())
 wf.setpos(n_frames)
+# for first tempo regression(4 beat back)
 time_list_for_beat = [1,2,3,4,5]
 confidence_queue = [0.001, 0.001, 0.001, 0.001, 0.001]
-
 cnt = 0
 CHUNK = 1024
 time_int = float(CHUNK) / 44100
-    # performance_start_time = 0
 cur_time = performance_start_time
 old_time = performance_start_time
 tempo_estimate_elapsed_time = 0
@@ -105,27 +81,16 @@ def press_key_thread():
     cnt = 0
     CHUNK = 1024
     time_int = float(CHUNK) / 44100
-    # performance_start_time = 0
     cur_time = performance_start_time
     old_time = performance_start_time
     tempo_estimate_elapsed_time = 0
     tempo_estimate_elapsed_time2 = 0
 
-    # wf = wave.open(audio_file, 'rb')
-    # p = pyaudio.PyAudio()
-    # stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
-    #                 channels=wf.getnchannels(),
-    #                 rate=wf.getframerate(),
-    #                 output=True)
-    # n_frames = int(performance_start_time * wf.getframerate())
-    # wf.setpos(n_frames)
     start_time = time.clock()
     count_cut = 1 
     datas = []
     estimated_tempo = Rc
     confidence_record_check = 0
-    # time_list_for_beat = [1,2,3,4,5]
-    # confidence_queue = [0.001, 0.001, 0.001, 0.001, 0.001]
     temp_downbound = 0.7
     temp_upbound = 1.3
     no_move_flag = False
@@ -138,21 +103,10 @@ def press_key_thread():
     b0 = 1
     t0 = time_list_for_beat[-1]
     s0 = float(1) / (time_list_for_beat[-1] - time_list_for_beat[-2])
-    # print("squeue append")
-    # sQueue.append(s0)
     beat_back = 4
 
     while not stop_thread:
-        # simulation_times = [1,2,3,4,5]
-        # while cnt < 4:
-        #     if cnt < len(simulation_times) and (
-        #          abs(time.clock() - original_begin - simulation_times[cnt])) <= 0.003 or time.clock() - original_begin >= \
-        #          simulation_times[cnt]:
-        #         timeQueue.append(time.clock() - original_begin)
-        #         cnt += 1
-        #         print("5 beat passed")
         while wf.tell() < wf.getnframes():
-            # print("begin")
             while time.clock() - start_time < count_cut * time_int:
                 pass
             count_cut += 1
@@ -182,7 +136,6 @@ def press_key_thread():
             if pitch != -1:
                 pitch = pitch - int(pitch) / 12 * 12
             pitches.append(pitch)
-            # print("pitch detected is " + str(pitch))
             elapsed_time = cur_time - old_time
             tempo = estimated_tempo
 
@@ -194,7 +147,6 @@ def press_key_thread():
         
             if tempo * tempo_estimate_elapsed_time > 2 * Rc:
                 tempo = tempo_estimate(tempo_estimate_elapsed_time, cur_pos, old_pos,Rc,resolution)
-            # with bound for tempo
                 if tempo / float(Rc) < temp_downbound:
                     tempo = Rc * temp_downbound
                 elif tempo / float(Rc) > temp_upbound:
@@ -269,7 +221,7 @@ def press_key_thread():
                 confidence_queue.append(confidence[int(cur_time / resolution)])
                 confidence_record_check = 0
             # print("cur_time " + str(cur_time))
-            print("real_time2__" + str(time.clock()))
+            print("real_time_SSSSSS------" + str(time.clock()))
             # print("cur_midipitch" + str(score_midi[cur_pos]))
             # print "end_time %f" % (float(time.clock())-float(start_time))
 
@@ -322,10 +274,8 @@ class Player:
             note = self.notes[i]
             cur_time = time.clock() - begin - total_delay
             wait_delta = note.start - cur_time
-            # cur=49
             if cur_time > end_time:
                 break
-            # print sQueue
             tempo_ratio = float(self.BPS) / sQueue[-1]
             # print sQueue
             # print("cur_time_acco " + str(cur_time))
@@ -336,10 +286,15 @@ class Player:
 
             target_start_time = time.clock() + wait_delta
             latency_end = target_start_time
-            print("real_time" + str(time.clock()))
-            # print(sQueue)
-            while time.clock() < target_start_time:
-                pass
+            print("real_time_AAAA------------" + str(time.clock()))
+            try:
+                time.sleep(target_start_time-time.clock())
+            except:
+                break
+            print("target_wake_up----"+ str(target_start_time))
+            print("wake_up----" + str(time.clock()))
+            # while time.clock() < target_start_time:
+            #     pass
             # print "--------------------------- wrong %f" %time.clock()
 
 
@@ -361,8 +316,13 @@ class Player:
             target_time = time.clock() + delta_time
             latency_end = target_time
 
-            while time.clock() < target_time:
-                pass
+            try:
+                time.sleep(target_time-time.clock())
+            except:
+                break
+
+            # while time.clock() < target_time:
+            #     pass
             # self.fs.noteoff(0, note.pitch)
 
             # for count for long break
