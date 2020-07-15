@@ -31,8 +31,8 @@ from auto_acco_combine_utilities import *
 # BPM = 70
 # nanshannan
 # BPM = 67
-BPM = 70
-Rc = 70
+BPM = 74
+Rc = 74
 
 # set up all the parameter first 
 # refine score_following 

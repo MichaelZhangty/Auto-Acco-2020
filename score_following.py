@@ -31,11 +31,11 @@ import aubio
 # Rc = 67
 # "shuosanjiusan_gus_6_9"
 # parameter to change
-audio_name = "audio4"
-midi_name  = "midi4_quick"
-Rc = 67
-score_end_time = 120
-audio_end_time = 60
+audio_name = "audio3"
+midi_name  = "midi3"
+Rc = 70
+score_end_time = 500
+audio_end_time = 500
 
 
 
@@ -50,7 +50,7 @@ plot = True
 FILTER = 'gate'
 aubio_pitch = True
 aubio_onset = True
-plot_position = 0
+plot_position = 11000
 onset_help = False
 
 

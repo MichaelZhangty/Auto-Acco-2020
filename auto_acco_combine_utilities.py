@@ -1,8 +1,8 @@
 import math
 import numpy as np
 import pretty_midi
-import analyse
-from madmom.features.onsets import CNNOnsetProcessor
+# import analyse
+# from madmom.features.onsets import CNNOnsetProcessor
 from scipy.integrate import quad
 import aubio
 import matplotlib.pyplot as plt
@@ -14,9 +14,9 @@ from mido import MidiFile
 import pretty_midi
 import threading
 import pretty_midi
-import scikits.audiolab
+# import scikits.audiolab
 import pyaudio
-import analyse
+# import analyse
 import time
 import copy
 from scipy.integrate import quad
@@ -42,7 +42,7 @@ def get_time_axis(resolution, filename):
     axis_start_time = 0
     axis_end_time = midi_data.instruments[0].notes[-1].end
     scoreLen = int(math.ceil(axis_end_time/resolution)) + 1
-    size = (axis_end_time - axis_start_time) / resolution + 1
+    size = int((axis_end_time - axis_start_time) / resolution + 1)
     axis = np.linspace(axis_start_time, axis_end_time, size)
     score_midi = np.full(scoreLen,-1)# no sound = -1
     raw_score_midi = np.full(scoreLen,-1)
@@ -227,8 +227,8 @@ def compute_tempo_ratio_weighted(b0, t0, s0, l,timeQueue,beat_back,confidence_qu
     te = timeQueue[-2]
     be = len(timeQueue) - 5
     x = timeQueue[-beat_back:]
-    y = range(len(timeQueue) - beat_back - 3, len(timeQueue) - 3)
-    confidence_block = confidence_queue[len(timeQueue) - beat_back:len(timeQueue) - 0]
+    y = list(range(len(timeQueue) - beat_back - 3, len(timeQueue) - 3))
+    confidence_block = confidence_queue[(len(timeQueue) - beat_back):len(timeQueue)]
     x = sm.add_constant(x)
     if y[0] == 0:
         wls_model = sm.WLS(y, x)
@@ -242,6 +242,7 @@ def compute_tempo_ratio_weighted(b0, t0, s0, l,timeQueue,beat_back,confidence_qu
     # print se
     sn = (float(4) / (te * se - tn * se - be + bn + 4)) * se
     return bn, tn, sn
+
 # audio_name = "audio4"
 # AUDIOFILE = 'audio/{}.wav'.format(audio_name)
 # midi_name = "midi4"
@@ -436,9 +437,9 @@ def score_following(audio_file,audio_end_time,Rc,resolution,sQueue,fsource,score
         if confidence_record_check == 1:
             confidence_queue.append(confidence[int(cur_time / resolution)])
             confidence_record_check = 0
-        print("cur_time " + str(cur_time))
+        # print("cur_time " + str(cur_time))
         # print("cur_midipitch" + str(score_midi[cur_pos]))
-        print "end_time %f" % (float(time.clock())-float(start_time))
+        # print "end_time %f" % (float(time.clock())-float(start_time))
 
 
 # if __name__ == "__main__":

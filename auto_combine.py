@@ -6,6 +6,8 @@ from scipy import stats
 import matplotlib.pyplot as plt
 
 from auto_acco_combine_utilities import *
+
+
 # BPM parameter for each midi
 # zhui guang zhe
 # BPM = 74
@@ -13,25 +15,36 @@ from auto_acco_combine_utilities import *
 # BPM = 70
 # nanshannan
 # BPM = 67
+
+
+# tempo for the original midi
 BPM = 67
 Rc = 67
 
-
 # name of the audio file
-audio_name = "audio2"
-midi_name = "midi2"
+audio_name = "nanshanshan-gus-01"
+midi_name = "midi4"
+audio_name_save = "audio_gus_nanshannan_muti_test"
+audio_end_time = 10
+
+
+
+
 # performance end_time
-end_time = 20
+end_time = 1
 # audio end time
-audio_end_time = 20
+# wf.getnframes() to get audio time 
+
 audio_file = 'audio/{}.wav'.format(audio_name)
 midi_file = 'midi/{}.mid'.format(midi_name)
 
 
 ACC_FILE = 'midi/{}.mid'.format(midi_name)
+
 BPS = BPM / float(60)  # beat per second
 original_begin = time.clock()
 global_tempo = 0
+
 
 # weight is for 0.5beats for 2 beats
 weight_judge = True
@@ -46,7 +59,6 @@ score_midi, score_axis, score_onsets, onsets, raw_score_midi = get_time_axis(res
 score_midi = score_midi_modification(score_midi)
 scoreLen = len(score_axis)
 fsource = np.zeros(scoreLen)
-confidence = np.zeros(scoreLen)
 
 performance_start_time = 0
 wf = wave.open(audio_file, 'rb')
@@ -57,19 +69,12 @@ stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
                     output=True)
 n_frames = int(performance_start_time * wf.getframerate())
 wf.setpos(n_frames)
-# for first tempo regression(4 beat back)
+length = wf.getnframes()
+# confidence should follow the length of audio
+confidence = np.zeros(int(math.ceil(wf.getnframes()/441))+1)
 time_list_for_beat = [1,2,3,4,5]
 confidence_queue = [0.001, 0.001, 0.001, 0.001, 0.001]
-cnt = 0
-CHUNK = 1024
-time_int = float(CHUNK) / 44100
-cur_time = performance_start_time
-old_time = performance_start_time
-tempo_estimate_elapsed_time = 0
-tempo_estimate_elapsed_time2 = 0
-
-# print(fsource)
-# print("finish inlize --------------------------------------")
+score_following_finish = False
 
 # thread for simulating the audio file
 def press_key_thread():
@@ -78,6 +83,7 @@ def press_key_thread():
     global latency_end
     global fsource
     global time_list_for_beat
+    global score_following_finish
     cnt = 0
     CHUNK = 1024
     time_int = float(CHUNK) / 44100
@@ -100,21 +106,28 @@ def press_key_thread():
     alpha = 10
     pitches = []
     onset_idx = 0
+
+
     b0 = 1
     t0 = time_list_for_beat[-1]
     s0 = float(1) / (time_list_for_beat[-1] - time_list_for_beat[-2])
     beat_back = 4
 
+
+
     while not stop_thread:
         while wf.tell() < wf.getnframes():
             while time.clock() - start_time < count_cut * time_int:
                 pass
+
             count_cut += 1
             data = wf.readframes(CHUNK)
+            if len(data)<2048:
+                break
             datas.append(data)
             if len(datas) >= 3:
                 c_data = datas[-3:]
-                c_data = ''.join(c_data)
+                c_data = b''.join(c_data)
                 pitch = pitch_detection_aubio(c_data,3)
             else:
                 c_data = data
@@ -123,7 +136,9 @@ def press_key_thread():
             onset_detector = aubio.onset("default", CHUNK, CHUNK, 44100)
             data_onset = np.fromstring(data, dtype=np.int16)
             data_onset = np.true_divide(data_onset, 32768, dtype=np.float32)
-            if len(data_onset) == 1024 and onset_detector(data_onset):
+ 
+            if len(data_onset) == 1024: 
+                onset_detector(data_onset)
                 onset_prob = onset_detector.get_last() / 44100
 
             tempo_estimate_elapsed_time += time_int
@@ -131,6 +146,8 @@ def press_key_thread():
             cur_time += time_int
 
             if cur_time > audio_end_time:
+                score_following_finish = True
+                stop_thread = True
                 break
 
             if pitch != -1:
@@ -138,31 +155,6 @@ def press_key_thread():
             pitches.append(pitch)
             elapsed_time = cur_time - old_time
             tempo = estimated_tempo
-
-            # record the beat time
-            if tempo * tempo_estimate_elapsed_time2 > 1 * Rc:
-                confidence_record_check = 1
-                time_list_for_beat.append(time_list_for_beat[-1] + tempo_estimate_elapsed_time2)  # list can be improved
-                tempo_estimate_elapsed_time2 = 0
-        
-            if tempo * tempo_estimate_elapsed_time > 2 * Rc:
-                tempo = tempo_estimate(tempo_estimate_elapsed_time, cur_pos, old_pos,Rc,resolution)
-                if tempo / float(Rc) < temp_downbound:
-                    tempo = Rc * temp_downbound
-                elif tempo / float(Rc) > temp_upbound:
-                    tempo = Rc * temp_upbound
-                tempo_estimate_elapsed_time = 0 
-                estimated_tempo = tempo
-                old_pos = cur_pos
-
-                # change the tempo for auto acco
-                if latency_end == -1:
-                    l = 0.1
-                else:
-                    l = max(0, latency_end - time.clock())
-                b0, t0, s0 = compute_tempo_ratio_weighted(b0, t0, s0, l,time_list_for_beat,beat_back,confidence_queue)
-                sQueue.append(s0)
-                print(sQueue)
 
 
             if fsource[cur_pos] > 0.1:
@@ -216,14 +208,38 @@ def press_key_thread():
                 if cur_pos < onsets[i]:
                     break
                 old_idx = i - 1
-        
-            if confidence_record_check == 1:
+
+            # record the beat time
+            if tempo * tempo_estimate_elapsed_time2 > 1 * Rc:
+                time_list_for_beat.append(time_list_for_beat[-1] + tempo_estimate_elapsed_time2)  # list can be improved
+                tempo_estimate_elapsed_time2 = 0
                 confidence_queue.append(confidence[int(cur_time / resolution)])
-                confidence_record_check = 0
-            # print("cur_time " + str(cur_time))
-            print("real_time_SSSSSS------" + str(time.clock()))
+
+            if tempo * tempo_estimate_elapsed_time > 2 * Rc:
+                tempo = tempo_estimate(tempo_estimate_elapsed_time, cur_pos, old_pos,Rc,resolution)
+                if tempo / float(Rc) < temp_downbound:
+                    tempo = Rc * temp_downbound
+                elif tempo / float(Rc) > temp_upbound:
+                    tempo = Rc * temp_upbound
+                tempo_estimate_elapsed_time = 0 
+                estimated_tempo = tempo
+                old_pos = cur_pos
+
+                if latency_end == -1:
+                    l = 0.1
+                else:
+                    l = max(0, latency_end - time.clock())
+                b0, t0, s0 = compute_tempo_ratio_weighted(b0, t0, s0, l,time_list_for_beat,beat_back,confidence_queue)
+                sQueue.append(s0)
+                # print(sQueue)
+        
+            print("cur_time " + str(cur_time))
+            # print("real_time_SSSSSS------" + str(time.clock()))
             # print("cur_midipitch" + str(score_midi[cur_pos]))
             # print "end_time %f" % (float(time.clock())-float(start_time))
+    score_following_finish = True
+    stop_thread = True
+    print("finish score following")
 
 
 '''
@@ -267,18 +283,23 @@ class Player:
         global sQueue
         global time_list_for_beat
         global latency_end
+        global score_following_finish
         begin = time.clock()
         total_delay = 0
 
         for i in range(start, len(self.notes)):
             note = self.notes[i]
+            if i == 0:
+                time.sleep(note.start- time.clock() + begin + total_delay-0.1)
             cur_time = time.clock() - begin - total_delay
             wait_delta = note.start - cur_time
-            if cur_time > end_time:
+            # if cur_time > end_time:
+            #     break
+            if score_following_finish:
                 break
             tempo_ratio = float(self.BPS) / sQueue[-1]
-            # print sQueue
-            # print("cur_time_acco " + str(cur_time))
+            print(sQueue)
+            print("cur_time_acco " + str(cur_time))
             # print "Tempo_ratio == %f" % tempo_ratio
             total_delay += wait_delta * (tempo_ratio-1)
             wait_delta = wait_delta * tempo_ratio
@@ -286,17 +307,15 @@ class Player:
 
             target_start_time = time.clock() + wait_delta
             latency_end = target_start_time
-            print("real_time_AAAA------------" + str(time.clock()))
+            # print("real_AAAA------------" + str(time.clock()))
+            # print("target_wake_up----"+ str(target_start_time))
             try:
-                time.sleep(target_start_time-time.clock())
+                if target_start_time > time.clock():
+                    time.sleep(target_start_time-time.clock())
             except:
                 break
             print("target_wake_up----"+ str(target_start_time))
-            print("wake_up----" + str(time.clock()))
-            # while time.clock() < target_start_time:
-            #     pass
-            # print "--------------------------- wrong %f" %time.clock()
-
+            # print("wake_up----" + str(time.clock()))
 
             self.playTimes.append(time.clock() - original_begin)
             self.noteTimes.append(note.start)
@@ -306,6 +325,8 @@ class Player:
             cur_time = time.clock() - begin - total_delay
 
             new_note = pretty_midi.Note(velocity=note.velocity, pitch=note.pitch, start=cur_time, end=cur_time + note.end - note.start)
+            print(str(cur_time)+"-------------------------")
+            # print(str(cur_time + note.end - note.start))
             piano.notes.append(new_note)
 
             delta_time = note.end - (time.clock() - begin - total_delay)
@@ -317,24 +338,27 @@ class Player:
             latency_end = target_time
 
             try:
-                time.sleep(target_time-time.clock())
+                if target_time > time.clock():
+                    time.sleep(target_time-time.clock())
             except:
+                # print("break for time sleep")
                 break
 
-            # while time.clock() < target_time:
-            #     pass
             # self.fs.noteoff(0, note.pitch)
 
-            # for count for long break
             old_target_start_time = target_start_time + 0
 
+        stop_thread = True
 
-        tap_time = [t for t in time_list_for_beat]
-        tap_beat = [(t - 4) / float(self.BPS) for t in range(len(tap_time))]
+
+        tap_time = [t-5 for t in time_list_for_beat[4:]]
+        # print("ready to plot")
+        # tap_beat = [(t-4) / float(self.BPS) for t in range(len(tap_time))]
+        tap_beat = [(t)/ float(self.BPS) for t in range(len(tap_time))]
 
 
         new_midi.instruments.append(piano)
-        new_midi.write("auto_accompany/auto_accompany{}.mid".format(audio_name))
+        new_midi.write("auto_accompany/auto_accompany{}.mid".format(audio_name_save))
 
 
 
@@ -357,24 +381,24 @@ class Player:
 if __name__ == '__main__':
     pk_thread = threading.Thread(target=press_key_thread)
     pk_thread.start()
-    fs = fluidsynth.Synth()
-    sfid = fs.sfload("soundfont.sf2")
-    fs.start("coreaudio")
-    fs.program_select(0, sfid, 0, 0)
+    fs = 1
+    # fs = fluidsynth.Synth()
+    # sfid = fs.sfload("soundfont.sf2")
+    # fs.start("coreaudio")
+    # fs.program_select(0, sfid, 0, 0)
     try:
-        # print('tap four times to start')
-        # while True:
-        #     if len(timeQueue) >= 5:
-        #         break
         player = Player(ACC_FILE, original_begin, BPM, fs)
         player.follow(0)
+        print("finish follow")
     except KeyboardInterrupt:
         stop_thread = True
-        pk_thread.killed = True
+        # pk_thread.killed = True
+        # _thread.exit()
         pk_thread.join()
-        fs.delete()
+        # fs.delete()
     finally:
         stop_thread = True
-        pk_thread.killed = True
+        # pk_thread.killed = True
+        # _thread.exit()
         pk_thread.join()
-        fs.delete()
+        # fs.delete()
