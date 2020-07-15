@@ -20,11 +20,12 @@ from auto_acco_combine_utilities import *
 # tempo for the original midi
 BPM = 67
 Rc = 67
-
-# name of the audio file
+# file names
 audio_name = "nanshanshan-gus-01"
 midi_name = "midi4"
+# name to save
 audio_name_save = "audio_gus_nanshannan_muti_test"
+# audio end time
 audio_end_time = 10
 
 
