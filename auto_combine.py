@@ -1,10 +1,12 @@
 import time
 import threading
 # from auto_accompany_utilities import *
-import fluidsynth
+# import fluidsynth
 from scipy import stats
 import matplotlib.pyplot as plt
-
+from mingus.midi import fluidsynth
+from mingus.containers import Note
+import mingus.core.notes as notes
 from auto_acco_combine_utilities import *
 
 
@@ -21,12 +23,12 @@ from auto_acco_combine_utilities import *
 BPM = 67
 Rc = 67
 # file names
-audio_name = "nanshanshan-gus-01"
-midi_name = "midi4"
+audio_name = "audio4"
+midi_name = "midi4_quick"
 # name to save
-audio_name_save = "audio_gus_nanshannan_muti_test"
+audio_name_save = "audio4_muti_test"
 # audio end time
-audio_end_time = 10
+audio_end_time = 30
 
 
 
@@ -77,6 +79,12 @@ time_list_for_beat = [1,2,3,4,5]
 confidence_queue = [0.001, 0.001, 0.001, 0.001, 0.001]
 score_following_finish = False
 
+# for check score_following
+score_following_midi = pretty_midi.PrettyMIDI()
+piano_program_following = pretty_midi.instrument_name_to_program('Acoustic Grand Piano')
+piano_following = pretty_midi.Instrument(program=piano_program_following)
+NEWFILE = 'score_following/score_muti_generated_{}.mid'.format(audio_name_save)
+
 # thread for simulating the audio file
 def press_key_thread():
     global pressed_key
@@ -107,14 +115,10 @@ def press_key_thread():
     alpha = 10
     pitches = []
     onset_idx = 0
-
-
     b0 = 1
     t0 = time_list_for_beat[-1]
     s0 = float(1) / (time_list_for_beat[-1] - time_list_for_beat[-2])
     beat_back = 4
-
-
 
     while not stop_thread:
         while wf.tell() < wf.getnframes():
@@ -123,6 +127,8 @@ def press_key_thread():
 
             count_cut += 1
             data = wf.readframes(CHUNK)
+            # play the frame
+            stream.write(data)
             if len(data)<2048:
                 break
             datas.append(data)
@@ -152,7 +158,8 @@ def press_key_thread():
                 break
 
             if pitch != -1:
-                pitch = pitch - int(pitch) / 12 * 12
+                pitch = pitch%12
+
             pitches.append(pitch)
             elapsed_time = cur_time - old_time
             tempo = estimated_tempo
@@ -205,6 +212,14 @@ def press_key_thread():
             while onset_idx < len(onsets) and cur_pos >= onsets[onset_idx]:
                 onset_idx += 1
 
+            # if old_idx < onset_idx:
+            #     old_note = old_midi.instruments[0].notes[onset_idx - 1]
+            #     dur = old_note.end - old_note.start
+            #     new_note = pretty_midi.Note(velocity=old_note.velocity, pitch=old_note.pitch, start=cur_time,
+            #                             end=cur_time + dur)
+            #     piano_following.notes.append(new_note)
+            #     # print("append ----------------------new note")
+
             for i in range(len(onsets)):
                 if cur_pos < onsets[i]:
                     break
@@ -234,10 +249,15 @@ def press_key_thread():
                 sQueue.append(s0)
                 # print(sQueue)
         
-            print("cur_time " + str(cur_time))
-            # print("real_time_SSSSSS------" + str(time.clock()))
+            # print("cur_time " + str(cur_time))
+            # print("start_time"+ str(start_time))
+            # print("real_time_SSSSSS------" + str(time.clock()-start_time))
             # print("cur_midipitch" + str(score_midi[cur_pos]))
             # print "end_time %f" % (float(time.clock())-float(start_time))
+        # score_following_midi.instruments.append(piano_following)
+        # score_following_midi.write(NEWFILE) 
+        print("start_time"+ str(start_time))
+
     score_following_finish = True
     stop_thread = True
     print("finish score following")
@@ -286,22 +306,25 @@ class Player:
         global latency_end
         global score_following_finish
         begin = time.clock()
+        print("begin time------------------------------" + str(begin))
         total_delay = 0
 
         for i in range(start, len(self.notes)):
             note = self.notes[i]
             if i == 0:
-                time.sleep(note.start- time.clock() + begin + total_delay-0.1)
+                if note.start - time.clock() + begin + total_delay - 0.1 > 0:
+                    time.sleep(note.start - time.clock() + begin + total_delay - 0.1)
             cur_time = time.clock() - begin - total_delay
             wait_delta = note.start - cur_time
             # if cur_time > end_time:
             #     break
             if score_following_finish:
                 break
+            # print(sQueue)
             tempo_ratio = float(self.BPS) / sQueue[-1]
-            print(sQueue)
-            print("cur_time_acco " + str(cur_time))
-            # print "Tempo_ratio == %f" % tempo_ratio
+            # print(sQueue)
+            print("cur_time_acco--------------------------" + str(cur_time))
+            print ("Tempo_ratio == "+str(tempo_ratio))
             total_delay += wait_delta * (tempo_ratio-1)
             wait_delta = wait_delta * tempo_ratio
 
@@ -309,24 +332,26 @@ class Player:
             target_start_time = time.clock() + wait_delta
             latency_end = target_start_time
             # print("real_AAAA------------" + str(time.clock()))
-            # print("target_wake_up----"+ str(target_start_time))
+            # print("target_wake_up----"+ str(target_start_time-begin))
             try:
                 if target_start_time > time.clock():
                     time.sleep(target_start_time-time.clock())
             except:
                 break
-            print("target_wake_up----"+ str(target_start_time))
-            # print("wake_up----" + str(time.clock()))
+            # print("wake_up----" + str(time.clock()-begin))
 
             self.playTimes.append(time.clock() - original_begin)
             self.noteTimes.append(note.start)
+            # play the note
+            n = Note(notes.int_to_note(note.pitch%12),note.pitch//12,300)
+            fluidsynth.play_Note(n)
 
             tempo_ratio = float(self.BPS) / sQueue[-1]
 
             cur_time = time.clock() - begin - total_delay
 
             new_note = pretty_midi.Note(velocity=note.velocity, pitch=note.pitch, start=cur_time, end=cur_time + note.end - note.start)
-            print(str(cur_time)+"-------------------------")
+            # print(str(cur_time)+"-------------------------")
             # print(str(cur_time + note.end - note.start))
             piano.notes.append(new_note)
 
@@ -383,6 +408,7 @@ if __name__ == '__main__':
     pk_thread = threading.Thread(target=press_key_thread)
     pk_thread.start()
     fs = 1
+    fluidsynth.init("soundfont.SF2")
     # fs = fluidsynth.Synth()
     # sfid = fs.sfload("soundfont.sf2")
     # fs.start("coreaudio")
@@ -392,14 +418,16 @@ if __name__ == '__main__':
         player.follow(0)
         print("finish follow")
     except KeyboardInterrupt:
-        stop_thread = True
+        # stop_thread = True
         # pk_thread.killed = True
         # _thread.exit()
+        # pk_thread.terminate()
         pk_thread.join()
         # fs.delete()
     finally:
-        stop_thread = True
+        # stop_thread = True
         # pk_thread.killed = True
         # _thread.exit()
+        # pk_thread.terminate()
         pk_thread.join()
         # fs.delete()

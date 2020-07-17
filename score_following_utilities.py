@@ -1,8 +1,6 @@
 import math
 import numpy as np
 import pretty_midi
-import analyse
-from madmom.features.onsets import CNNOnsetProcessor
 from scipy.integrate import quad
 import aubio
 import matplotlib.pyplot as plt
@@ -16,19 +14,47 @@ def normpdf(x, mean, sd=1):
     return num / denom
 
 # get time axis from midi file
-def get_time_axis(resolution, start_time, end_time, filename):
-    axis_start_time = 0
-    axis_end_time = math.floor(end_time / resolution) * resolution
-    size = (axis_end_time - axis_start_time) / resolution + 1
-    axis = np.linspace(axis_start_time, axis_end_time, size)
-    if abs(axis_end_time - end_time) > 1e-5:
-        axis = np.concatenate((axis, [end_time]))
-    scoreLen = len(axis)
-    # score_midi = np.zeros(scoreLen)
-    # to differeniate real pitch 0 and no sound
-    score_midi = np.full(scoreLen,-1)
-    raw_score_midi = np.full(scoreLen,-1)
+# def get_time_axis(resolution, start_time, end_time, filename):
+#     axis_start_time = 0
+#     axis_end_time = math.floor(end_time / resolution) * resolution
+#     size = (axis_end_time - axis_start_time) / resolution + 1
+#     axis = np.linspace(axis_start_time, axis_end_time, size)
+#     if abs(axis_end_time - end_time) > 1e-5:
+#         axis = np.concatenate((axis, [end_time]))
+#     scoreLen = len(axis)
+#     # score_midi = np.zeros(scoreLen)
+#     # to differeniate real pitch 0 and no sound
+#     score_midi = np.full(scoreLen,-100)
+#     raw_score_midi = np.full(scoreLen,-100)
+#     midi_data = pretty_midi.PrettyMIDI(filename)
+#     score_onsets = np.zeros(scoreLen)
+#     onsets = []
+#     for note in midi_data.instruments[0].notes:
+#         start = int(math.floor(note.start / resolution))
+#         end = int(math.ceil(note.end / resolution)) + 1
+#         if start < len(score_onsets):
+#             score_onsets[start] = 1
+#         onsets.append(start)
+#         for j in range(start, end):
+#             if j < len(score_midi):
+#                 # regulate to 12 pitch
+#                 score_midi[j] = note.pitch - note.pitch / 12 * 12
+#                 # norma pitch
+#                 raw_score_midi[j] = note.pitch
+#     # plot to check
+#     plt.plot(score_midi)
+#     plt.show()
+#     return score_midi, axis, score_onsets, onsets, raw_score_midi
+resolution = 0.01
+def get_time_axis(resolution,start_time,end_time,filename):
     midi_data = pretty_midi.PrettyMIDI(filename)
+    axis_start_time = 0
+    axis_end_time = midi_data.instruments[0].notes[-1].end
+    scoreLen = int(math.ceil(axis_end_time/resolution)) + 1
+    size = int((axis_end_time - axis_start_time) / resolution + 1)
+    axis = np.linspace(axis_start_time, axis_end_time, size)
+    score_midi = np.full(scoreLen,-1)# no sound = -1
+    raw_score_midi = np.full(scoreLen,-1)
     score_onsets = np.zeros(scoreLen)
     onsets = []
     for note in midi_data.instruments[0].notes:
@@ -39,15 +65,12 @@ def get_time_axis(resolution, start_time, end_time, filename):
         onsets.append(start)
         for j in range(start, end):
             if j < len(score_midi):
-                # regulate to 12 pitch
-                score_midi[j] = note.pitch - note.pitch / 12 * 12
-                # norma pitch
+                score_midi[j] = note.pitch%12 # regulate to 12 pitch
                 raw_score_midi[j] = note.pitch
-    # plot to check
-    # plt.plot(score_onsets)
+    # # plot to check
+    # plt.plot(score_midi)
     # plt.show()
     return score_midi, axis, score_onsets, onsets, raw_score_midi
-
 def diff(score):
     diff_score = np.zeros(len(score))
     for i in range(len(score) - 1):
@@ -73,8 +96,8 @@ std=1,WINSIZE = 1,WEIGHT=[0.5]):
     # else:
     #     pitch = pitch - int(pitch) / 12 * 12
     # after module 12 
-    if pitch == -1:
-        pitch = -1
+    if pitch == -100:
+        pitch = -100
     elif len(pitches) > WINSIZE:
         # pitch_gap = pitch - np.dot(pitches[-1 - WINSIZE:-1], WINSIZE)
         if pitch > 11.5:
@@ -96,13 +119,13 @@ std=1,WINSIZE = 1,WEIGHT=[0.5]):
   
     # to check for two tempo at most per pitch
     # each i represent 0.01s
-    window_size = 500
+    window_size = 200
     left = max(0, cur_pos - window_size)
     right = min(scoreLen, cur_pos + window_size)
    
     for i in range(left,right):
 
-        if pitch == -1 or score_midi[i] == -1:
+        if pitch == -100 or score_midi[i] == -100:
             score_pitch = score_midi[i]
         elif i >= WINSIZE:
             score_pitch = score_midi[i] - np.dot(score_midi[i - WINSIZE:i], WEIGHT)
@@ -114,12 +137,12 @@ std=1,WINSIZE = 1,WEIGHT=[0.5]):
         score_onset = score_onsets[i]
         if feature == 'onset':
             # for fix no sound bug
-            if pitch == -1:
-                if score_pitch == -1:
+            if pitch == -100:
+                if score_pitch == -100:
                     f_V_given_I[i] = 0.1
                 else:
                     f_V_given_I[i] = 0.00000000001
-            elif score_pitch == -1:
+            elif score_pitch == -100:
                 f_V_given_I[i] = 0.00000000001
             else:
                 # fix module 12 problem about bounds
@@ -189,7 +212,7 @@ def pitch_detection_aubio(data,size):
     samps = np.true_divide(samps, 32768, dtype=np.float32)
     pitch = pitch_detector(samps)[0]
     if pitch > 84 or pitch < 40:
-        return -1
+        return -100
     else:
         return pitch
 
@@ -198,7 +221,7 @@ def tempo_estimate(elapsed_time, cur_pos, old_pos,Rc,resolution=0.01):
     # print 'elapsed_time %f'%elapsed_time
     return float(cur_pos - old_pos) * Rc * resolution / elapsed_time
 
-window_size = 1000
+window_size = 200
 def compute_f_I_given_D(fsource, f_I_J_given_D, cur_pos, scoreLen):
     left = max(0, cur_pos - window_size)
     right = min(scoreLen, cur_pos + window_size)

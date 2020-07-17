@@ -31,11 +31,11 @@ import aubio
 # Rc = 67
 # "shuosanjiusan_gus_6_9"
 # parameter to change
-audio_name = "audio3"
-midi_name  = "midi3"
-Rc = 70
-score_end_time = 500
-audio_end_time = 500
+audio_name = "audio4"
+midi_name  = "midi4_quick"
+Rc = 67
+score_end_time = 200
+audio_end_time = 30
 
 
 
@@ -50,7 +50,7 @@ plot = True
 FILTER = 'gate'
 aubio_pitch = True
 aubio_onset = True
-plot_position = 11000
+plot_position = 1100
 onset_help = False
 
 
@@ -171,9 +171,11 @@ def score_follow(audio_file, midi_file, feature, mask):
         # print("begin_time" + str(time.clock()))
         if plot and cur_pos > plot_position:
             stream.write(data)
+        # play the frame
+        # stream.write(data)
         if len(datas) >= 3:
             c_data = datas[-3:]
-            c_data = ''.join(c_data)
+            c_data = b''.join(c_data)
         else:
             c_data = data
 
@@ -213,13 +215,12 @@ def score_follow(audio_file, midi_file, feature, mask):
             break
 
         # print("before detected pitch is " + str(pitch))
-
         # fix no sound bug
         # remove module 12 problem
         if pitch == -1:
-            pitch = -1
+            pitch = -100
         else:
-            pitch = pitch - int(pitch) / 12 * 12
+            pitch = pitch%12
         # print 'detected pitch is %f' % pitch
         # print("detected pitch is" + str(pitch))
         pitches.append(pitch)
@@ -402,7 +403,7 @@ def score_follow(audio_file, midi_file, feature, mask):
         # print("currenly at"+str(cur_pos))
         print("cur_time " + str(cur_time))
         # print("cur_midipitch" + str(score_midi[cur_pos]))
-        print "end_time %f" % (float(time.clock())-float(start_time))
+        # print "end_time %f" % (float(time.clock())-float(start_time))
         # print "origianl_time %f" % real_time
 
         matched_score.append(score_midi[cur_pos])
@@ -414,22 +415,22 @@ def score_follow(audio_file, midi_file, feature, mask):
     new_midi.write(NEWFILE) 
     # np.savetxt(CONF_FILE, confidence)
     np.savetxt(PITCHFILE, pitchfile)
-    score_plt = [min(-x / 5, 0) for x in score_midi]
-    fig = plt.figure()
-    ax = fig.add_subplot(1, 1, 1)
-    ax.spines['left'].set_position(('data', 0))
-    ax.spines['bottom'].set_position(('data', 0))
-    ax.spines['right'].set_color('none')
-    ax.spines['top'].set_color('none')
-    ax.xaxis.set_ticks_position('bottom')
-    ax.yaxis.set_ticks_position('left')
-    s, = plt.plot(score_plt, score_axis, color='r')
-    dp, = plt.plot(time_axis, detected_pitches, 'o', color='g', label='detected pitch', markersize=1)
-    mp, = plt.plot(time_axis, mapped_time, 'o', color='b', label='mapped position', markersize=1)
-    plt.xlabel('audio time (seconds)')
-    plt.ylabel('score time (seconds)')
-    plt.grid()
-    plt.show()
+    # score_plt = [min(-x / 5, 0) for x in score_midi]
+    # fig = plt.figure()
+    # ax = fig.add_subplot(1, 1, 1)
+    # ax.spines['left'].set_position(('data', 0))
+    # ax.spines['bottom'].set_position(('data', 0))
+    # ax.spines['right'].set_color('none')
+    # ax.spines['top'].set_color('none')
+    # ax.xaxis.set_ticks_position('bottom')
+    # ax.yaxis.set_ticks_position('left')
+    # s, = plt.plot(score_plt, score_axis, color='r')
+    # dp, = plt.plot(time_axis, detected_pitches, 'o', color='g', label='detected pitch', markersize=1)
+    # mp, = plt.plot(time_axis, mapped_time, 'o', color='b', label='mapped position', markersize=1)
+    # plt.xlabel('audio time (seconds)')
+    # plt.ylabel('score time (seconds)')
+    # plt.grid()
+    # plt.show()
     
 
 
