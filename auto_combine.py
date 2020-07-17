@@ -23,12 +23,12 @@ from auto_acco_combine_utilities import *
 BPM = 67
 Rc = 67
 # file names
-audio_name = "audio4"
-midi_name = "midi4_quick"
+audio_name = "nanshanshan-gus-01"
+midi_name = "midi4"
 # name to save
-audio_name_save = "audio4_muti_test"
+audio_name_save = "audionanshannan_gus_muti_test"
 # audio end time
-audio_end_time = 30
+audio_end_time = 500
 
 
 
@@ -120,8 +120,8 @@ def press_key_thread():
     s0 = float(1) / (time_list_for_beat[-1] - time_list_for_beat[-2])
     beat_back = 4
 
-    while not stop_thread:
-        while wf.tell() < wf.getnframes():
+    # while not stop_thread:
+    while wf.tell() < wf.getnframes():
             while time.clock() - start_time < count_cut * time_int:
                 pass
 
@@ -249,14 +249,14 @@ def press_key_thread():
                 sQueue.append(s0)
                 # print(sQueue)
         
-            # print("cur_time " + str(cur_time))
+            print("cur_time " + str(cur_time))
             # print("start_time"+ str(start_time))
             # print("real_time_SSSSSS------" + str(time.clock()-start_time))
             # print("cur_midipitch" + str(score_midi[cur_pos]))
             # print "end_time %f" % (float(time.clock())-float(start_time))
-        score_following_midi.instruments.append(piano_following)
-        score_following_midi.write(NEWFILE) 
-        print("start_time"+ str(start_time))
+    score_following_midi.instruments.append(piano_following)
+    score_following_midi.write(NEWFILE) 
+    print("start_time"+ str(start_time))
 
     score_following_finish = True
     stop_thread = True
@@ -306,8 +306,9 @@ class Player:
         global latency_end
         global score_following_finish
         begin = time.clock()
-        print("begin time------------------------------" + str(begin))
+        # print("begin time------------------------------" + str(begin))
         total_delay = 0
+
 
         for i in range(start, len(self.notes)):
             note = self.notes[i]
@@ -338,7 +339,7 @@ class Player:
                     time.sleep(target_start_time-time.clock())
             except:
                 break
-            # print("wake_up----" + str(time.clock()-begin))
+            print("wake_up----" + str(time.clock()-begin))
 
             self.playTimes.append(time.clock() - original_begin)
             self.noteTimes.append(note.start)
@@ -418,14 +419,14 @@ if __name__ == '__main__':
         player.follow(0)
         print("finish follow")
     except KeyboardInterrupt:
-        # stop_thread = True
+        stop_thread = True
         # pk_thread.killed = True
         # _thread.exit()
         # pk_thread.terminate()
         pk_thread.join()
         # fs.delete()
     finally:
-        # stop_thread = True
+        stop_thread = True
         # pk_thread.killed = True
         # _thread.exit()
         # pk_thread.terminate()

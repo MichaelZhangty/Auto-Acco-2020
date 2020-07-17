@@ -58,8 +58,14 @@ def get_time_axis(resolution, filename):
         onsets.append(start)
         for j in range(start, end):
             if j < len(score_midi):
+                # if j-start > 150:
+                #     score_midi[j] = -1
+                #     print(">=150")
+                # else:
                 score_midi[j] = note.pitch%12 # regulate to 12 pitch
                 raw_score_midi[j] = note.pitch
+            # modification for at most 1.5s
+
     # plot to check
     # plt.plot(score_midi[0:500])
     # plt.show()
@@ -72,7 +78,7 @@ def score_midi_modification(score_midi):
     for i in range(len(score_midi)):
         if score_midi[i] == temp_pitch:
             count += 1
-            if count >= 150:
+            if count >= 100:
                 score_midi[i] = -1
         else:
             temp_pitch = score_midi[i]
