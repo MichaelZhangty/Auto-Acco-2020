@@ -46,11 +46,11 @@ resolution = 0.01
 CHUNK = 1024
 time_int = float(CHUNK) / 44100
 alpha = 10
-plot = True
+plot = False
 FILTER = 'gate'
 aubio_pitch = True
 aubio_onset = True
-plot_position = 1100
+plot_position = 2600
 onset_help = False
 
 
@@ -218,17 +218,17 @@ def score_follow(audio_file, midi_file, feature, mask):
         # fix no sound bug
         # remove module 12 problem
         if pitch == -1:
-            pitch = -100
+            pitch = -1
         else:
             pitch = pitch%12
         # print 'detected pitch is %f' % pitch
-        # print("detected pitch is" + str(pitch))
+        print("detected pitch is" + str(pitch))
         pitches.append(pitch)
 
         detected_pitches.append(-pitch)
         firstReadingFlag = False
         elapsed_time = cur_time - old_time
-        # print("cur_time is" + str(cur_time))
+        print("cur_time is" + str(cur_time))
         tempo = estimated_tempo
 
         # record the beat time

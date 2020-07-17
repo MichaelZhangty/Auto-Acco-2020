@@ -96,8 +96,8 @@ std=1,WINSIZE = 1,WEIGHT=[0.5]):
     # else:
     #     pitch = pitch - int(pitch) / 12 * 12
     # after module 12 
-    if pitch == -100:
-        pitch = -100
+    if pitch == -1:
+        pitch = -1
     elif len(pitches) > WINSIZE:
         # pitch_gap = pitch - np.dot(pitches[-1 - WINSIZE:-1], WINSIZE)
         if pitch > 11.5:
@@ -125,7 +125,7 @@ std=1,WINSIZE = 1,WEIGHT=[0.5]):
    
     for i in range(left,right):
 
-        if pitch == -100 or score_midi[i] == -100:
+        if pitch == -1 or score_midi[i] == -1:
             score_pitch = score_midi[i]
         elif i >= WINSIZE:
             score_pitch = score_midi[i] - np.dot(score_midi[i - WINSIZE:i], WEIGHT)
@@ -137,12 +137,12 @@ std=1,WINSIZE = 1,WEIGHT=[0.5]):
         score_onset = score_onsets[i]
         if feature == 'onset':
             # for fix no sound bug
-            if pitch == -100:
-                if score_pitch == -100:
+            if pitch == -1:
+                if score_pitch == -1:
                     f_V_given_I[i] = 0.1
                 else:
                     f_V_given_I[i] = 0.00000000001
-            elif score_pitch == -100:
+            elif score_pitch == -1:
                 f_V_given_I[i] = 0.00000000001
             else:
                 # fix module 12 problem about bounds
@@ -212,7 +212,7 @@ def pitch_detection_aubio(data,size):
     samps = np.true_divide(samps, 32768, dtype=np.float32)
     pitch = pitch_detector(samps)[0]
     if pitch > 84 or pitch < 40:
-        return -100
+        return -1
     else:
         return pitch
 

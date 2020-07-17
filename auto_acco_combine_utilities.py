@@ -124,7 +124,7 @@ def compute_f_I_J_given_D(score_axis, estimated_tempo, elapsed_time, beta,alpha,
         rateRatio = float(Rc) / float(estimated_tempo)
     else:
         rateRatio = Rc / 0.00001
-    rateRatio = 1/rateRatio
+    # rateRatio = 1/rateRatio
     sigmaSquare = math.log(float(1) / float(alpha * elapsed_time) + 1)
     sigma = math.sqrt(sigmaSquare)
     tmp1 = 1 / (score_axis * sigma * math.sqrt(2 * math.pi))

@@ -128,7 +128,7 @@ def press_key_thread():
             count_cut += 1
             data = wf.readframes(CHUNK)
             # play the frame
-            stream.write(data)
+            # stream.write(data)
             if len(data)<2048:
                 break
             datas.append(data)
@@ -212,13 +212,13 @@ def press_key_thread():
             while onset_idx < len(onsets) and cur_pos >= onsets[onset_idx]:
                 onset_idx += 1
 
-            # if old_idx < onset_idx:
-            #     old_note = old_midi.instruments[0].notes[onset_idx - 1]
-            #     dur = old_note.end - old_note.start
-            #     new_note = pretty_midi.Note(velocity=old_note.velocity, pitch=old_note.pitch, start=cur_time,
-            #                             end=cur_time + dur)
-            #     piano_following.notes.append(new_note)
-            #     # print("append ----------------------new note")
+            if old_idx < onset_idx:
+                old_note = old_midi.instruments[0].notes[onset_idx - 1]
+                dur = old_note.end - old_note.start
+                new_note = pretty_midi.Note(velocity=old_note.velocity, pitch=old_note.pitch, start=cur_time,
+                                        end=cur_time + dur)
+                piano_following.notes.append(new_note)
+                # print("append ----------------------new note")
 
             for i in range(len(onsets)):
                 if cur_pos < onsets[i]:
@@ -254,8 +254,8 @@ def press_key_thread():
             # print("real_time_SSSSSS------" + str(time.clock()-start_time))
             # print("cur_midipitch" + str(score_midi[cur_pos]))
             # print "end_time %f" % (float(time.clock())-float(start_time))
-        # score_following_midi.instruments.append(piano_following)
-        # score_following_midi.write(NEWFILE) 
+        score_following_midi.instruments.append(piano_following)
+        score_following_midi.write(NEWFILE) 
         print("start_time"+ str(start_time))
 
     score_following_finish = True
@@ -323,8 +323,8 @@ class Player:
             # print(sQueue)
             tempo_ratio = float(self.BPS) / sQueue[-1]
             # print(sQueue)
-            print("cur_time_acco--------------------------" + str(cur_time))
-            print ("Tempo_ratio == "+str(tempo_ratio))
+            # print("cur_time_acco--------------------------" + str(cur_time))
+            # print ("Tempo_ratio == "+str(tempo_ratio))
             total_delay += wait_delta * (tempo_ratio-1)
             wait_delta = wait_delta * tempo_ratio
 
@@ -343,8 +343,8 @@ class Player:
             self.playTimes.append(time.clock() - original_begin)
             self.noteTimes.append(note.start)
             # play the note
-            n = Note(notes.int_to_note(note.pitch%12),note.pitch//12,300)
-            fluidsynth.play_Note(n)
+            # n = Note(notes.int_to_note(note.pitch%12),note.pitch//12,300)
+            # fluidsynth.play_Note(n)
 
             tempo_ratio = float(self.BPS) / sQueue[-1]
 
