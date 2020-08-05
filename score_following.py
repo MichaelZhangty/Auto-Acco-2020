@@ -31,11 +31,11 @@ import aubio
 # Rc = 67
 # "shuosanjiusan_gus_6_9"
 # parameter to change
-audio_name = "audio4"
-midi_name  = "midi4_quick"
-Rc = 67
-score_end_time = 200
-audio_end_time = 30
+audio_name = "audio3_5%"
+midi_name  = "midi3"
+Rc = 70
+score_end_time = 500
+audio_end_time = 500
 
 
 
@@ -43,14 +43,16 @@ performance_start_time = 0
 score_start_time = 0
 resolution = 0.01
 # CHUNK = 1412
+# CHUNK = 1024
 CHUNK = 1024
 time_int = float(CHUNK) / 44100
 alpha = 10
+
 plot = False
 FILTER = 'gate'
 aubio_pitch = True
 aubio_onset = True
-plot_position = 2600
+plot_position = 400
 onset_help = False
 
 
@@ -123,6 +125,8 @@ def score_follow(audio_file, midi_file, feature, mask):
     n_frames = int(performance_start_time * wf.getframerate())
     wf.setpos(n_frames)
     data = wf.readframes(CHUNK)
+    last_beat_position_1 = 0 
+    last_beat_position_2 = 0
 
     # get audio onset 
     # if feature == 'onset':
@@ -148,14 +152,14 @@ def score_follow(audio_file, midi_file, feature, mask):
     temp_pitch = 0
     count = 1
     onset_detector = aubio.onset("default", CHUNK, CHUNK, 44100)
-    for i in range(len(score_midi)):
-        if score_midi[i] == temp_pitch:
-            count += 1
-            if count >= 150:
-                score_midi[i] = -1
-        else:
-            temp_pitch = score_midi[i]
-            count = 1
+    # for i in range(len(score_midi)):
+    #     if score_midi[i] == temp_pitch:
+    #         count += 1
+    #         if count >= 100:
+    #             score_midi[i] = -1
+    #     else:
+    #         temp_pitch = score_midi[i]
+    #         count = 1
 
 
     #44100 
@@ -163,14 +167,13 @@ def score_follow(audio_file, midi_file, feature, mask):
     #0.09s
     start_time = time.clock()
     count_cut = 1 
+    count_jump = 0
     while wf.tell() < wf.getnframes():
         while time.clock() - start_time < count_cut * time_int:
             pass
         count_cut += 1
         # start_time = time.clock()
         # print("begin_time" + str(time.clock()))
-        if plot and cur_pos > plot_position:
-            stream.write(data)
         # play the frame
         # stream.write(data)
         if len(datas) >= 3:
@@ -178,13 +181,17 @@ def score_follow(audio_file, midi_file, feature, mask):
             c_data = b''.join(c_data)
         else:
             c_data = data
+        c_data = data
+        if plot and cur_pos > plot_position:
+            stream.write(c_data)
 
         # detect pitch 
         if aubio_pitch:
-            if len(datas) >= 3:
-                pitch = pitch_detection_aubio(c_data,3)
-            else:
-                pitch = pitch_detection_aubio(c_data,1)
+            # if len(datas) >= 3:
+            #     pitch = pitch_detection_aubio(c_data,3)
+            # else:
+            #     pitch = pitch_detection_aubio(c_data,1)
+            pitch = pitch_detection_aubio(c_data,1)
         else:
             pitch = pitch_detection(c_data)
 
@@ -197,9 +204,13 @@ def score_follow(audio_file, midi_file, feature, mask):
 
         data_onset = np.fromstring(data, dtype=np.int16)
         data_onset = np.true_divide(data_onset, 32768, dtype=np.float32)
-        if len(data_onset) == 1024 and onset_detector(data_onset):
-            onset_prob = onset_detector.get_last() / 44100
-
+        # print("lengtjh-----"+str(len(data_onset)))
+        if len(data_onset) == CHUNK: # 1024
+            onset_detector(data_onset)
+            try:
+                onset_prob = onset_detector.get_last() / 44100
+            except:
+                onset_prob = 0
 
         data = wf.readframes(CHUNK)
         datas.append(data)
@@ -228,31 +239,31 @@ def score_follow(audio_file, midi_file, feature, mask):
         detected_pitches.append(-pitch)
         firstReadingFlag = False
         elapsed_time = cur_time - old_time
-        print("cur_time is" + str(cur_time))
+        # print("cur_time is" + str(cur_time))
         tempo = estimated_tempo
 
-        # record the beat time
-        if tempo * tempo_estimate_elapsed_time2 > 1 * Rc:
-            # print "bigger than one RC"
-            confidence_record_check = 1
-            # pos_list.append(cur_pos) # only use for dtw
-            # tempo_estimate_elapsed_time2 is performance time
-            # print("record--------" + str(time_list_for_beat[-1] + tempo_estimate_elapsed_time2))
-            time_list_for_beat.append(time_list_for_beat[-1] + tempo_estimate_elapsed_time2)
-            tempo_estimate_elapsed_time2 = 0
+        # # record the beat time
+        # if tempo * tempo_estimate_elapsed_time2 > 1 * Rc:
+        #     # print "bigger than one RC"
+        #     confidence_record_check = 1
+        #     # pos_list.append(cur_pos) # only use for dtw
+        #     # tempo_estimate_elapsed_time2 is performance time
+        #     # print("record--------" + str(time_list_for_beat[-1] + tempo_estimate_elapsed_time2))
+        #     time_list_for_beat.append(time_list_for_beat[-1] + tempo_estimate_elapsed_time2)
+        #     tempo_estimate_elapsed_time2 = 0
 
-        # tempo_follow change every two beats
-        if tempo * tempo_estimate_elapsed_time > 2 * Rc:
-            # print "tempo changed"
-            tempo = tempo_estimate(tempo_estimate_elapsed_time, cur_pos, old_pos,Rc)
-            # with bound for tempo
-            if tempo / float(Rc) < temp_downbound:
-                tempo = Rc * temp_downbound
-            elif tempo / float(Rc) > temp_upbound:
-                tempo = Rc * temp_upbound
-            tempo_estimate_elapsed_time = 0
-            estimated_tempo = tempo
-            old_pos = cur_pos
+        # # tempo_follow change every two beats
+        # if tempo * tempo_estimate_elapsed_time > 2 * Rc:
+        #     # print "tempo changed"
+        #     tempo = tempo_estimate(tempo_estimate_elapsed_time, cur_pos, old_pos,Rc)
+        #     # with bound for tempo
+        #     if tempo / float(Rc) < temp_downbound:
+        #         tempo = Rc * temp_downbound
+        #     elif tempo / float(Rc) > temp_upbound:
+        #         tempo = Rc * temp_upbound
+        #     tempo_estimate_elapsed_time = 0
+        #     estimated_tempo = tempo
+        #     old_pos = cur_pos
 
         # print 'tempo %f' % tempo
         # print("tempo"+str(tempo))
@@ -283,6 +294,7 @@ def score_follow(audio_file, midi_file, feature, mask):
 
         # print("after figivend cur pos is"+str(cur_pos))
         # print("set up before calculate"+str(time.clock()))
+        fsource_original = fsource
         f_I_J_given_D = compute_f_I_J_given_D(score_axis, tempo, elapsed_time, beta,alpha,Rc,no_move_flag)
         # print("compute delta" + str(time.clock()))
         f_I_given_D = compute_f_I_given_D(fsource, f_I_J_given_D, cur_pos, scoreLen)
@@ -311,7 +323,8 @@ def score_follow(audio_file, midi_file, feature, mask):
         elif mask == 'gate':
             gate_mask = create_gate_mask(cur_pos, scoreLen)
             fsource = fsource * gate_mask
-
+        # print(fsource)
+        # print("fsource"+str(sum(fsource)))
         fsource = fsource / sum(fsource)
         cur_pos = np.argmax(fsource)
         # print("compute final position" + str(time.clock()))
@@ -322,24 +335,34 @@ def score_follow(audio_file, midi_file, feature, mask):
 
         # onset < 0.01
 
-        if onset_help and onset_prob < 0.01 and cur_pos >= onsets[onset_idx]:
-            cur_pos = last_cur_pos
-            fsource = fsource_last
-            # print("help onset judge --------")
-            # cur_pos = onsets[onset_idx] - 1
-        else:
-            last_cur_pos = cur_pos
-            fsource_last = fsource
+        # if onset_help and onset_prob < 0.01 and cur_pos >= onsets[onset_idx]:
+        #     cur_pos = last_cur_pos
+        #     fsource = fsource_last
+        #     # print("help onset judge --------")
+        #     # cur_pos = onsets[onset_idx] - 1
+        # else:
+        #     last_cur_pos = cur_pos
+        #     fsource_last = fsource
 
 
         # for suddenly slient while singing in the middle       
-        if pitch == -1 and score_midi[cur_pos]!= -1:
-            no_move_flag = True
-        # for stuck after long slience to wait for some sound
-        elif pitch == -1 and score_midi[cur_pos+1]!= -1:
+        # if pitch == -1 and score_midi[cur_pos]!= -1:
+        #     no_move_flag = True
+        # # for stuck after long slience to wait for some sound
+        if pitch == -1 and score_midi[cur_pos+1]!= -1:
             no_move_flag = True
         else:
             no_move_flag = False
+
+        if pitch != -1 and score_midi[cur_pos] == -1:
+            count_jump += 1
+        else:
+            count_jump = 0
+
+        # if no_move_flag:
+        #     print("no move --------------------------")
+        #     fsource = fsource_original
+        #     cur_pos = np.argmax(fsource)
         # last_cur_pos = cur_pos
         # fsource_last = fsource
         # print "check -------"
@@ -357,7 +380,7 @@ def score_follow(audio_file, midi_file, feature, mask):
                 y4 = score_midi[start:end]
                 for k in range(start,end):
                     x.append(k*resolution)                
-                fig=plt.figure()
+                fig= plt.figure()
                 ax1 = plt.subplot(511)
                 ax1.label_outer()
                 plt.plot(x,y1)
@@ -372,35 +395,70 @@ def score_follow(audio_file, midi_file, feature, mask):
                 plt.xlabel('Time in score {} pitch is {}'.format(cur_pos*resolution,pitch))
                 plt.show()
 
-        if fsource[cur_pos] > confidence[int(cur_time / resolution)]:
-            confidence[int(cur_time / resolution)] = fsource[cur_pos]
 
-        pitchfile[int(cur_time / resolution)] = pitch
+        # if fsource[cur_pos] > confidence[int(cur_time / resolution)]:
+        #     confidence[int(cur_time / resolution)] = fsource[cur_pos]
+        if fsource[cur_pos] > confidence[cur_pos]:
+            confidence[cur_pos] = fsource[cur_pos]
+
+        # pitchfile[int(cur_time / resolution)] = pitch
+        pitchfile[cur_pos] = pitch
         old_time = cur_time
 
         old_idx = onset_idx
         while onset_idx < len(onsets) and cur_pos >= onsets[onset_idx]:
             onset_idx += 1
 
-        if old_idx < onset_idx:
+        if old_idx < onset_idx and not no_move_flag:
+            print("append new note-----------------------------------------")
             old_note = old_midi.instruments[0].notes[onset_idx - 1]
             dur = old_note.end - old_note.start
             new_note = pretty_midi.Note(velocity=old_note.velocity, pitch=old_note.pitch, start=cur_time,
-                                        end=cur_time + dur)
+                                        end=cur_time + min(dur,1.5))
             piano.notes.append(new_note)
+        old_idx = onset_idx - 1
 
-        for i in range(len(onsets)):
-            if cur_pos < onsets[i]:
-                break
-            old_idx = i - 1
+        # for i in range(len(onsets)):
+        #     if cur_pos < onsets[i]:
+        #         break
+        #     old_idx = i - 1
+
+        
+        # record the beat time
+        # if tempo * tempo_estimate_elapsed_time2 > 1 * Rc:
+        if (cur_pos-last_beat_position_1)/100 > 60/Rc:
+            # print "bigger than one RC"
+            confidence_record_check = 1
+            # pos_list.append(cur_pos) # only use for dtw
+            # tempo_estimate_elapsed_time2 is performance time
+            # print("record--------" + str(time_list_for_beat[-1] + tempo_estimate_elapsed_time2))
+            time_list_for_beat.append(time_list_for_beat[-1] + tempo_estimate_elapsed_time2)
+            tempo_estimate_elapsed_time2 = 0
+            last_beat_position_1 = cur_pos
+
+        # tempo_follow change every two beats
+        # if tempo * tempo_estimate_elapsed_time > 2 * Rc:
+        if (cur_pos-last_beat_position_2)/100 > 60/Rc * 2:
+            # print "tempo changed"
+            tempo = tempo_estimate(tempo_estimate_elapsed_time, cur_pos, old_pos,Rc)
+            # with bound for tempo
+            if tempo / float(Rc) < temp_downbound:
+                tempo = Rc * temp_downbound
+            elif tempo / float(Rc) > temp_upbound:
+                tempo = Rc * temp_upbound
+            tempo_estimate_elapsed_time = 0
+            estimated_tempo = tempo
+            old_pos = cur_pos
+            last_beat_position_2 = cur_pos
 
         if confidence_record_check == 1:
-            confidence_queue.append(confidence[int(cur_time / resolution)])
+            # confidence_queue.append(confidence[int(cur_time / resolution)])
+            confidence_queue.append(confidence[cur_pos])
             confidence_record_check = 0
 
         # print 'currently at %d' % cur_pos
         # print 'cur_time %f' % cur_time
-        # print("currenly at"+str(cur_pos))
+        print("currenly at"+str(cur_pos))
         print("cur_time " + str(cur_time))
         # print("cur_midipitch" + str(score_midi[cur_pos]))
         # print "end_time %f" % (float(time.clock())-float(start_time))

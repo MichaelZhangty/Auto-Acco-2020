@@ -65,7 +65,11 @@ def get_time_axis(resolution,start_time,end_time,filename):
         onsets.append(start)
         for j in range(start, end):
             if j < len(score_midi):
-                score_midi[j] = note.pitch%12 # regulate to 12 pitch
+                if j - start > 100:
+                    score_midi[j] = -1
+                    print("regulate")
+                else:
+                    score_midi[j] = note.pitch%12 # regulate to 12 pitch
                 raw_score_midi[j] = note.pitch
     # # plot to check
     # plt.plot(score_midi)
@@ -203,8 +207,8 @@ def pitch_detection(data):
 
 
 def pitch_detection_aubio(data,size):
+    # CHUNK = 1024
     CHUNK = 1024
-    # CHUNK = 1412
     pitch_detector = aubio.pitch('yinfft', CHUNK*size, CHUNK*size, 44100)
     pitch_detector.set_unit('midi')
     pitch_detector.set_tolerance(0.75)

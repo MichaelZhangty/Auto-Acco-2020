@@ -58,18 +58,57 @@ def get_time_axis(resolution, filename):
         onsets.append(start)
         for j in range(start, end):
             if j < len(score_midi):
-                # if j-start > 150:
-                #     score_midi[j] = -1
-                #     print(">=150")
-                # else:
-                score_midi[j] = note.pitch%12 # regulate to 12 pitch
+                if j-start > 100:
+                    score_midi[j] = -1
+                else:
+                    score_midi[j] = note.pitch%12 # regulate to 12 pitch
                 raw_score_midi[j] = note.pitch
             # modification for at most 1.5s
-
     # plot to check
     # plt.plot(score_midi[0:500])
     # plt.show()
     return score_midi, axis, score_onsets, onsets, raw_score_midi
+
+def get_time_axis_auto_acco(resolution, filename):
+    # resolution = 0.1
+    midi_data = pretty_midi.PrettyMIDI(filename)
+    axis_start_time = 0
+    axis_end_time = midi_data.instruments[0].notes[-1].end
+    # print("end_time" + str(axis_end_time))
+    scoreLen = int(math.ceil(axis_end_time/resolution)) + 1
+    size = int((axis_end_time - axis_start_time) / resolution + 1)
+    axis = np.linspace(axis_start_time, axis_end_time, size)
+    score_midi = np.full(scoreLen,-1)# no sound = -1
+    raw_score_midi = np.full(scoreLen,-1)
+    score_onsets = np.zeros(scoreLen)
+    onsets = []
+    for note in midi_data.instruments[0].notes:
+        start = int(math.floor(note.start / resolution))
+        end = int(math.ceil(note.end / resolution)) + 1
+        if start < len(score_onsets):
+            score_onsets[start] = 1
+        onsets.append(start)
+        for j in range(start, end):
+            if j < len(score_midi):
+                # cut 1 s
+                if j-start > 10:
+                    raw_score_midi[j] = -1
+                    score_midi[j] = -1
+                    # print(">=100")
+                else:
+                    # print(j-start)
+                    raw_score_midi[j] = note.pitch
+                    score_midi[j] = note.pitch # regulate to 12 pitch
+                # raw_score_midi[j] = note.pitch
+            # modification for at most 1.5s
+    # plot to check
+    # plt.plot(score_midi[0:500])
+    # plt.show()
+    return score_midi, axis, score_onsets, onsets, raw_score_midi
+
+
+
+
 
 def score_midi_modification(score_midi):
     # change score_midi to make every pitch last for at most 1.5s
@@ -195,10 +234,11 @@ std=1,WINSIZE = 1,WEIGHT=[0.5]):
 
     return f_V_given_I
 
-def create_gate_mask(cur_pos, scoreLen):
+def create_gate_mask(cur_pos, scoreLen,tempo,Rc):
     mask = np.zeros(scoreLen)
+    up_bound = math.ceil(tempo/Rc*80)
 
-    for i in range(-50, 51):
+    for i in range(-50, 51): # 50 51
         if cur_pos + i < scoreLen and cur_pos + i >= 0:
             mask[cur_pos + i] = 1
     # plt.plot(range(scoreLen),mask, color='black')
@@ -227,17 +267,19 @@ def similarity(onset_prob, score_onset):
 
 
 
-def compute_tempo_ratio_weighted(b0, t0, s0, l,timeQueue,beat_back,confidence_queue):
+def compute_tempo_ratio_weighted(b0, t0, s0, l,timeQueue,beat_back,confidence_queue,beat_list):
     t1 = timeQueue[-1]
     b = b0 + (t1 + l - t0) * s0
     tn = t1 + l
     # print "latency l %f---------------------------------"%l
     bn = b
     te = timeQueue[-2]
-    be = len(timeQueue) - 5
+    # be = len(timeQueue) - 5
+    be = beat_list[-2]
+    # be = len(timeQueue) -2
     x = timeQueue[-beat_back:]
-    y = list(range(len(timeQueue) - beat_back - 3, len(timeQueue) - 3))
-    confidence_block = confidence_queue[(len(timeQueue) - beat_back):len(timeQueue)]
+    y = list(range(len(timeQueue)-beat_back,len(timeQueue))) # -3
+    confidence_block = confidence_queue[-beat_back:]
     x = sm.add_constant(x)
     if y[0] == 0:
         wls_model = sm.WLS(y, x)
@@ -248,6 +290,22 @@ def compute_tempo_ratio_weighted(b0, t0, s0, l,timeQueue,beat_back,confidence_qu
         results = wls_model.fit()
         se = results.params[1]
     # print "------------------------------sk-----------------------"
-    # print se
+    print("weighted_score_tempo " + str(se*60))
     sn = (float(4) / (te * se - tn * se - be + bn + 4)) * se
+    # sn = (float(2) / (te * se - tn * se - be + bn + 2)) * se
+    return bn, tn, sn
+
+def compute_tempo_ratio(b0, t0, s0, l,timeQueue):
+    t1 = timeQueue[-1]
+    b = b0 + (t1 + l - t0) * s0
+    tn = t1 + l
+    bn = b
+    te = timeQueue[-2]
+    # be = len(timeQueue) - 5
+    be = len(timeQueue) - 2
+    se = float(1) / (timeQueue[-1] - timeQueue[-2])
+    # for normal regression
+    sn = (float(4) / (te * se - tn * se - be + bn + 4)) * se
+    # sn = (float(4) * se / (te * se - tn * se - be + bn + 4))
+    # print(sn)
     return bn, tn, sn
