@@ -18,10 +18,10 @@ from auto_acco_combine_utilities import *
 BPM = 70
 Rc = 70
 # file names
-audio_name = "audio3_3%"
+audio_name = '''audio3%'''
 midi_name = "midi3"
 # name to save
-audio_name_save = "midi3_muti3"
+audio_name_save = "midi3_muti_3%_1beat"
 # audio end time
 audio_end_time = 500
 
@@ -251,6 +251,19 @@ def press_key_thread():
                 confidence_queue.append(confidence[int(cur_time / resolution)])
                 beat_list.append(beat_list[-1]+((cur_pos-last_beat_position_1)/100)/(60/Rc))
                 last_beat_position_1 = cur_pos
+
+                # change tempo for accompany
+
+                if latency_end == -1:
+                    l = 0.1
+                else:
+                    l = max(0, latency_end - time.clock())
+                print("latency=========== " + str(l))
+                b0, t0, s0 = compute_tempo_ratio_weighted(b0, t0, s0, l,time_list_for_beat,beat_back,confidence_queue,beat_list)
+                # b0, t0, s0 = compute_tempo_ratio(b0,t0,s0, l,time_list_for_beat)
+                list_b0.append(b0)
+                list_t0.append(t0)
+                sQueue.append(s0)
             
                 
 
@@ -266,16 +279,7 @@ def press_key_thread():
                 old_pos = cur_pos
                 last_beat_position_2 = cur_pos
 
-                if latency_end == -1:
-                    l = 0.1
-                else:
-                    l = max(0, latency_end - time.clock())
-                print("latency=========== " + str(l))
-                b0, t0, s0 = compute_tempo_ratio_weighted(b0, t0, s0, l,time_list_for_beat,beat_back,confidence_queue,beat_list)
-                # b0, t0, s0 = compute_tempo_ratio(b0,t0,s0, l,time_list_for_beat)
-                list_b0.append(b0)
-                list_t0.append(t0)
-                sQueue.append(s0)
+
                 # print(sQueue)
                 # print("score_tempo " + str(tempo))
                 # print("acco_tempo " + str(s0*60))
@@ -409,14 +413,9 @@ class Player:
 
 
                 try:
-                    # print("current_time " + str(time.clock()))
-                    # print("target_start_time " + str(target_start_time))
                     if target_start_time > time.clock():
                         time.sleep(target_start_time-time.clock())
                         # print("wake up " + str(time.clock()))
-                        # print("sleep over")s
-                    # while target_start_time > time.clock():
-                    #     pass
                 except:
                     break
                 cnt_accompany += 1

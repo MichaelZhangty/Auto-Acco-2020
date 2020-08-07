@@ -23,6 +23,6 @@ audio_end_time = 10
 
 Change audio_name, midi_name, BPM, Rc, audio_name_save,audio_end_time according to your preference.
 
-run auto_combine.py with your audio and midi.
+run auto_combine_v1.py with your audio and midi.
 
 The final result is in auto_accompany folder.

@@ -36,6 +36,8 @@ import aubio
 # one set up function
 # one while running function 
 # shared is sQueue
+
+
 # get time axis from midi file
 def get_time_axis(resolution, filename):
     resolution = 0.01
@@ -74,7 +76,6 @@ def get_time_axis_auto_acco(resolution, filename):
     midi_data = pretty_midi.PrettyMIDI(filename)
     axis_start_time = 0
     axis_end_time = midi_data.instruments[0].notes[-1].end
-    # print("end_time" + str(axis_end_time))
     scoreLen = int(math.ceil(axis_end_time/resolution)) + 1
     size = int((axis_end_time - axis_start_time) / resolution + 1)
     axis = np.linspace(axis_start_time, axis_end_time, size)
@@ -94,37 +95,15 @@ def get_time_axis_auto_acco(resolution, filename):
                 if j-start > 10:
                     raw_score_midi[j] = -1
                     score_midi[j] = -1
-                    # print(">=100")
                 else:
-                    # print(j-start)
                     raw_score_midi[j] = note.pitch
                     score_midi[j] = note.pitch # regulate to 12 pitch
-                # raw_score_midi[j] = note.pitch
-            # modification for at most 1.5s
     # plot to check
     # plt.plot(score_midi[0:500])
     # plt.show()
     return score_midi, axis, score_onsets, onsets, raw_score_midi
 
 
-
-
-
-def score_midi_modification(score_midi):
-    # change score_midi to make every pitch last for at most 1.5s
-    temp_pitch = -1
-    count = 1
-    for i in range(len(score_midi)):
-        if score_midi[i] == temp_pitch:
-            count += 1
-            if count >= 100:
-                score_midi[i] = -1
-        else:
-            temp_pitch = score_midi[i]
-            count = 1
-    # plt.plot(score_midi)
-    # plt.show()
-    return score_midi
 
 def pitch_detection_aubio(data,size):
     CHUNK = 1024
@@ -274,9 +253,7 @@ def compute_tempo_ratio_weighted(b0, t0, s0, l,timeQueue,beat_back,confidence_qu
     # print "latency l %f---------------------------------"%l
     bn = b
     te = timeQueue[-2]
-    # be = len(timeQueue) - 5
     be = beat_list[-2]
-    # be = len(timeQueue) -2
     x = timeQueue[-beat_back:]
     y = list(range(len(timeQueue)-beat_back,len(timeQueue))) # -3
     confidence_block = confidence_queue[-beat_back:]
@@ -289,9 +266,8 @@ def compute_tempo_ratio_weighted(b0, t0, s0, l,timeQueue,beat_back,confidence_qu
         wls_model = sm.WLS(y, x, weights=confidence_block)
         results = wls_model.fit()
         se = results.params[1]
-    # print "------------------------------sk-----------------------"
-    print("weighted_score_tempo " + str(se*60))
-    sn = (float(4) / (te * se - tn * se - be + bn + 4)) * se
+    d = 4 #4
+    sn = (float(d) / (te * se - tn * se - be + bn + d)) * se
     # sn = (float(2) / (te * se - tn * se - be + bn + 2)) * se
     return bn, tn, sn
 
