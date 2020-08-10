@@ -255,7 +255,8 @@ def compute_tempo_ratio_weighted(b0, t0, s0, l,timeQueue,beat_back,confidence_qu
     te = timeQueue[-2]
     be = beat_list[-2]
     x = timeQueue[-beat_back:]
-    y = list(range(len(timeQueue)-beat_back,len(timeQueue))) # -3
+    y = beat_list[-beat_back:]
+    # list(range(len(timeQueue)-beat_back,len(timeQueue))) # -3
     confidence_block = confidence_queue[-beat_back:]
     x = sm.add_constant(x)
     if y[0] == 0:
