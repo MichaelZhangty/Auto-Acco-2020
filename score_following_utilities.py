@@ -45,7 +45,7 @@ def normpdf(x, mean, sd=1):
 #     plt.plot(score_midi)
 #     plt.show()
 #     return score_midi, axis, score_onsets, onsets, raw_score_midi
-resolution = 0.01
+resolution = 0.01 #0.01
 def get_time_axis(resolution,start_time,end_time,filename):
     midi_data = pretty_midi.PrettyMIDI(filename)
     axis_start_time = 0
@@ -56,6 +56,8 @@ def get_time_axis(resolution,start_time,end_time,filename):
     score_midi = np.full(scoreLen,-1)# no sound = -1
     raw_score_midi = np.full(scoreLen,-1)
     score_onsets = np.zeros(scoreLen)
+    # record axis_loudness
+    axis_loudness = np.zeros(scoreLen)
     onsets = []
     for note in midi_data.instruments[0].notes:
         start = int(math.floor(note.start / resolution))
@@ -65,16 +67,18 @@ def get_time_axis(resolution,start_time,end_time,filename):
         onsets.append(start)
         for j in range(start, end):
             if j < len(score_midi):
-                if j - start > 100:
-                    score_midi[j] = -1
-                    print("regulate")
-                else:
-                    score_midi[j] = note.pitch%12 # regulate to 12 pitch
+                if j -start < 100:
+                    axis_loudness[j] = 1
+                # if j - start > 20:#100
+                #     score_midi[j] = -1
+                #     print("regulate")
+                # else:
+                score_midi[j] = note.pitch%12 # regulate to 12 pitch
                 raw_score_midi[j] = note.pitch
     # # plot to check
     # plt.plot(score_midi)
     # plt.show()
-    return score_midi, axis, score_onsets, onsets, raw_score_midi
+    return score_midi, axis, score_onsets, onsets, raw_score_midi, axis_loudness
 def diff(score):
     diff_score = np.zeros(len(score))
     for i in range(len(score) - 1):
@@ -92,6 +96,8 @@ def similarity(onset_prob, score_onset):
 def compute_f_V_given_I(pitch, pitches, scoreLen, score_midi, onset_prob, score_onsets, alpha, feature, w1, w2, w3,cur_pos,
 std=1,WINSIZE = 1,WEIGHT=[0.5]):
     # weight = 0.5 original
+    WINSIZE = 5
+    WEIGHT = [0.1,0.1,0.1,0.1,0.1]
     reverse_judge = False
     f_V_given_I = np.zeros(scoreLen)
     sims = np.zeros(scoreLen)
@@ -109,11 +115,12 @@ std=1,WINSIZE = 1,WEIGHT=[0.5]):
             pitch_reverse = pitch_reverse - np.dot(pitches[-1 - WINSIZE:-1], WEIGHT)
             reverse_judge = True
             # print("pitch_reverse"+str(pitch_reverse))
-        elif pitch < 0.5:
+        elif 0 < pitch < 0.5:
             pitch_reverse = pitch + 12
             pitch_reverse = pitch_reverse - np.dot(pitches[-1 - WINSIZE:-1], WEIGHT)
             reverse_judge = True
             # print("pitch_reverse"+str(pitch_reverse))
+        # if pitch > -1:
         pitch = pitch - np.dot(pitches[-1 - WINSIZE:-1], WEIGHT)
         
                 
@@ -123,7 +130,7 @@ std=1,WINSIZE = 1,WEIGHT=[0.5]):
   
     # to check for two tempo at most per pitch
     # each i represent 0.01s
-    window_size = 200
+    window_size = 200 #200
     left = max(0, cur_pos - window_size)
     right = min(scoreLen, cur_pos + window_size)
    
@@ -182,6 +189,7 @@ def compute_f_I_J_given_D(score_axis, estimated_tempo, elapsed_time, beta,alpha,
         rateRatio = float(Rc) / float(estimated_tempo)
     else:
         rateRatio = Rc / 0.00001
+    rateRatio = 1/rateRatio
     sigmaSquare = math.log(float(1) / float(alpha * elapsed_time) + 1)
     sigma = math.sqrt(sigmaSquare)
     tmp1 = 1 / (score_axis * sigma * math.sqrt(2 * math.pi))
@@ -206,10 +214,10 @@ def pitch_detection(data):
         return -1
 
 
-def pitch_detection_aubio(data,size):
+def pitch_detection_aubio(data,size,CHUNK):
     # CHUNK = 1024
-    CHUNK = 1024
-    pitch_detector = aubio.pitch('yinfft', CHUNK*size, CHUNK*size, 44100)
+    # CHUNK = 1024
+    pitch_detector = aubio.pitch('yin', CHUNK*size, CHUNK*size, 44100)
     pitch_detector.set_unit('midi')
     pitch_detector.set_tolerance(0.75)
     samps = np.fromstring(data, dtype=np.int16)
@@ -225,7 +233,7 @@ def tempo_estimate(elapsed_time, cur_pos, old_pos,Rc,resolution=0.01):
     # print 'elapsed_time %f'%elapsed_time
     return float(cur_pos - old_pos) * Rc * resolution / elapsed_time
 
-window_size = 200
+window_size = 200 #200
 def compute_f_I_given_D(fsource, f_I_J_given_D, cur_pos, scoreLen):
     left = max(0, cur_pos - window_size)
     right = min(scoreLen, cur_pos + window_size)

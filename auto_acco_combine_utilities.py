@@ -36,11 +36,12 @@ import aubio
 # one set up function
 # one while running function 
 # shared is sQueue
+# get time axis from midi file
 
 
 # get time axis from midi file
 def get_time_axis(resolution, filename):
-    resolution = 0.01
+    # resolution = 0.1 #0.01
     midi_data = pretty_midi.PrettyMIDI(filename)
     axis_start_time = 0
     axis_end_time = midi_data.instruments[0].notes[-1].end
@@ -51,6 +52,8 @@ def get_time_axis(resolution, filename):
     score_midi = np.full(scoreLen,-1)# no sound = -1
     raw_score_midi = np.full(scoreLen,-1)
     score_onsets = np.zeros(scoreLen)
+    #axis loundess
+    axis_loudness = np.zeros(scoreLen)
     onsets = []
     for note in midi_data.instruments[0].notes:
         start = int(math.floor(note.start / resolution))
@@ -60,16 +63,27 @@ def get_time_axis(resolution, filename):
         onsets.append(start)
         for j in range(start, end):
             if j < len(score_midi):
+                if j-start < 100:
+                    axis_loudness[j] = 1
                 if j-start > 100:
                     score_midi[j] = -1
                 else:
                     score_midi[j] = note.pitch%12 # regulate to 12 pitch
                 raw_score_midi[j] = note.pitch
             # modification for at most 1.5s
+    
+    # for index in range(len(score_midi)):
+    #     if score_midi[index] == -1:
+    #         if index == 0:
+    #             score_midi[index] = midi_data.instruments[0].notes[0].pitch%12
+    #         else:
+    #             score_midi[index] = score_midi[index-1]
+    # print(min(score_midi))
+
     # plot to check
-    # plt.plot(score_midi[0:500])
+    # plt.plot(score_midi)
     # plt.show()
-    return score_midi, axis, score_onsets, onsets, raw_score_midi
+    return score_midi, axis, score_onsets, onsets, raw_score_midi, axis_loudness
 
 def get_time_axis_auto_acco(resolution, filename):
     # resolution = 0.1
@@ -97,7 +111,8 @@ def get_time_axis_auto_acco(resolution, filename):
                     score_midi[j] = -1
                 else:
                     raw_score_midi[j] = note.pitch
-                    score_midi[j] = note.pitch # regulate to 12 pitch
+                    score_midi[j] = note.pitch%12 # regulate to 12 pitch
+    
     # plot to check
     # plt.plot(score_midi[0:500])
     # plt.show()
@@ -105,10 +120,9 @@ def get_time_axis_auto_acco(resolution, filename):
 
 
 
-def pitch_detection_aubio(data,size):
-    CHUNK = 1024
-    # CHUNK = 1412
-    pitch_detector = aubio.pitch('yinfft', CHUNK*size, CHUNK*size, 44100)
+def pitch_detection_aubio(data,size,CHUNK):
+    # CHUNK = #1024
+    pitch_detector = aubio.pitch('yin', CHUNK*size, CHUNK*size, 44100)
     pitch_detector.set_unit('midi')
     pitch_detector.set_tolerance(0.75)
     samps = np.fromstring(data, dtype=np.int16)
@@ -122,7 +136,7 @@ def pitch_detection_aubio(data,size):
 def tempo_estimate(elapsed_time, cur_pos, old_pos,Rc,resolution):
     return float(cur_pos - old_pos) * Rc * resolution / elapsed_time
 
-def compute_f_I_given_D(fsource, f_I_J_given_D, cur_pos, scoreLen,window_size=200):
+def compute_f_I_given_D(fsource, f_I_J_given_D, cur_pos, scoreLen,window_size=200):#200
     left = max(0, cur_pos - window_size)
     right = min(scoreLen, cur_pos + window_size)
     f_I_given_D = np.zeros(scoreLen)
@@ -148,7 +162,7 @@ def compute_f_I_J_given_D(score_axis, estimated_tempo, elapsed_time, beta,alpha,
         rateRatio = float(Rc) / float(estimated_tempo)
     else:
         rateRatio = Rc / 0.00001
-    # rateRatio = 1/rateRatio
+    rateRatio = 1/rateRatio
     sigmaSquare = math.log(float(1) / float(alpha * elapsed_time) + 1)
     sigma = math.sqrt(sigmaSquare)
     tmp1 = 1 / (score_axis * sigma * math.sqrt(2 * math.pi))
@@ -168,6 +182,9 @@ def compute_f_I_J_given_D(score_axis, estimated_tempo, elapsed_time, beta,alpha,
 def compute_f_V_given_I(pitch, pitches, scoreLen, score_midi, onset_prob, score_onsets, alpha, w1, w2, w3,cur_pos,
 std=1,WINSIZE = 1,WEIGHT=[0.5]):
     # weight = 0.5 original
+    # method2: diff with previous 5 pitches weighted as 0.1
+    # WINSIZE = 5
+    # WEIGHT = [0.1,0.1,0.1,0.1,0.1]
     reverse_judge = False
     f_V_given_I = np.zeros(scoreLen)
     sims = np.zeros(scoreLen)
@@ -178,7 +195,7 @@ std=1,WINSIZE = 1,WEIGHT=[0.5]):
             pitch_reverse = pitch - 12
             pitch_reverse = pitch_reverse - np.dot(pitches[-1 - WINSIZE:-1], WEIGHT)
             reverse_judge = True
-        elif pitch < 0.5:
+        elif 0 < pitch < 0.5:
             pitch_reverse = pitch + 12
             pitch_reverse = pitch_reverse - np.dot(pitches[-1 - WINSIZE:-1], WEIGHT)
             reverse_judge = True
@@ -186,13 +203,16 @@ std=1,WINSIZE = 1,WEIGHT=[0.5]):
 
     # to check for two tempo at most per pitch
     # each i represent 0.01s
-    window_size = 200
+    window_size = 200 #200
     left = max(0, cur_pos - window_size)
     right = min(scoreLen, cur_pos + window_size)
    
     for i in range(left,right):
-        if pitch == -1 or score_midi[i] == -1:
+        if score_midi[i] == -1:
             score_pitch = score_midi[i]
+        # assert(score_midi[i] == -1,"fail with -1-1")
+            # assert("fail with -1")
+            # print("------------------------------------------1-1-1-1-1-1-")
         elif i >= WINSIZE:
             score_pitch = score_midi[i] - np.dot(score_midi[i - WINSIZE:i], WEIGHT)
         else:
@@ -244,13 +264,12 @@ def similarity(onset_prob, score_onset):
     sim = float(min(onset_prob, score_onset) + 1e-6) / (max(onset_prob, score_onset) + 1e-6)
     return sim
 
-
-
 def compute_tempo_ratio_weighted(b0, t0, s0, l,timeQueue,beat_back,confidence_queue,beat_list):
     t1 = timeQueue[-1]
     b = b0 + (t1 + l - t0) * s0
     tn = t1 + l
     # print "latency l %f---------------------------------"%l
+    beat_back = 5
     bn = b
     te = timeQueue[-2]
     be = beat_list[-2]
@@ -267,8 +286,15 @@ def compute_tempo_ratio_weighted(b0, t0, s0, l,timeQueue,beat_back,confidence_qu
         wls_model = sm.WLS(y, x, weights=confidence_block)
         results = wls_model.fit()
         se = results.params[1]
+        # correct beat position according to weighted regression
+        y_inter = results.params[0]
+        be = te * se + y_inter
+        # for i in range(1,beat_back+1):
+        #     beat_list[-i] = timeQueue[-i] * se + y_inter
+        
     d = 4 #4
     sn = (float(d) / (te * se - tn * se - be + bn + d)) * se
+
     # sn = (float(2) / (te * se - tn * se - be + bn + 2)) * se
     return bn, tn, sn
 

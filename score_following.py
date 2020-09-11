@@ -31,7 +31,7 @@ import aubio
 # Rc = 67
 # "shuosanjiusan_gus_6_9"
 # parameter to change
-audio_name = "audio3_5%"
+audio_name = "audio3"
 midi_name  = "midi3"
 Rc = 70
 score_end_time = 500
@@ -41,10 +41,10 @@ audio_end_time = 500
 
 performance_start_time = 0
 score_start_time = 0
-resolution = 0.01
 # CHUNK = 1412
-# CHUNK = 1024
 CHUNK = 1024
+# CHUNK = 2048
+resolution = 0.01  #float(CHUNK) / 44100 #0.01
 time_int = float(CHUNK) / 44100
 alpha = 10
 
@@ -52,7 +52,7 @@ plot = False
 FILTER = 'gate'
 aubio_pitch = True
 aubio_onset = True
-plot_position = 400
+plot_position = 0
 onset_help = False
 
 
@@ -85,9 +85,8 @@ def score_follow(audio_file, midi_file, feature, mask):
     new_midi = pretty_midi.PrettyMIDI()
     piano_program = pretty_midi.instrument_name_to_program('Acoustic Grand Piano')
     piano = pretty_midi.Instrument(program=piano_program)
-    score_midi, score_axis, score_onsets, onsets, raw_score_midi = get_time_axis(resolution, score_start_time, score_end_time,
+    score_midi, score_axis, score_onsets, onsets, raw_score_midi,axis_loudness = get_time_axis(resolution, score_start_time, score_end_time,
                                                                  midi_file)
-    print(score_axis)
     onset_idx = 0
     pitches = []
     mapped_onset_times = []
@@ -160,8 +159,6 @@ def score_follow(audio_file, midi_file, feature, mask):
     #     else:
     #         temp_pitch = score_midi[i]
     #         count = 1
-
-
     #44100 
     #1412 0.03s
     #0.09s
@@ -181,19 +178,21 @@ def score_follow(audio_file, midi_file, feature, mask):
             c_data = b''.join(c_data)
         else:
             c_data = data
-        c_data = data
         if plot and cur_pos > plot_position:
-            stream.write(c_data)
+            stream.write(data)
 
         # detect pitch 
         if aubio_pitch:
-            # if len(datas) >= 3:
-            #     pitch = pitch_detection_aubio(c_data,3)
-            # else:
-            #     pitch = pitch_detection_aubio(c_data,1)
-            pitch = pitch_detection_aubio(c_data,1)
+            if len(datas) >= 3:
+                pitch = pitch_detection_aubio(c_data,3,CHUNK)
+            else:
+                pitch = pitch_detection_aubio(c_data,1,CHUNK)
+            #for single chunk judge
+            # c_data = data
+            # pitch = pitch_detection_aubio(c_data,1,CHUNK)
         else:
             pitch = pitch_detection(c_data)
+
 
         if pitch == -1: 
            raw_pitches.append(-1)
@@ -295,11 +294,13 @@ def score_follow(audio_file, midi_file, feature, mask):
         # print("after figivend cur pos is"+str(cur_pos))
         # print("set up before calculate"+str(time.clock()))
         fsource_original = fsource
-        f_I_J_given_D = compute_f_I_J_given_D(score_axis, tempo, elapsed_time, beta,alpha,Rc,no_move_flag)
-        # print("compute delta" + str(time.clock()))
-        f_I_given_D = compute_f_I_given_D(fsource, f_I_J_given_D, cur_pos, scoreLen)
+
         if no_move_flag:
             f_I_given_D = fsource
+        else:
+            f_I_J_given_D = compute_f_I_J_given_D(score_axis, tempo, elapsed_time, beta,alpha,Rc,no_move_flag)
+            # print("compute delta" + str(time.clock()))
+            f_I_given_D = compute_f_I_given_D(fsource, f_I_J_given_D, cur_pos, scoreLen)
         cur_pos = np.argmax(f_I_given_D)
         # print("move delta for p(ot)"+str(time.clock()))
         # print("after figivend cur pos is"+str(cur_pos))
@@ -346,18 +347,23 @@ def score_follow(audio_file, midi_file, feature, mask):
 
 
         # for suddenly slient while singing in the middle       
-        # if pitch == -1 and score_midi[cur_pos]!= -1:
-        #     no_move_flag = True
-        # # for stuck after long slience to wait for some sound
+        if pitch == -1 and score_midi[cur_pos]!= -1:
+            no_move_flag = True
+        # for stuck after long slience to wait for some sound
         if pitch == -1 and score_midi[cur_pos+1]!= -1:
             no_move_flag = True
         else:
             no_move_flag = False
 
-        if pitch != -1 and score_midi[cur_pos] == -1:
-            count_jump += 1
-        else:
-            count_jump = 0
+        # if pitch != -1 and score_midi[cur_pos] == -1:
+        #     count_jump += 1
+        # else:
+        #     count_jump = 0
+
+        # if pitch > -1 and (axis_loudness[cur_pos] + axis_loudness[cur_pos + 1] == 2):
+        #         no_move_flag = False
+        # else:
+        #         no_move_flag = True
 
         # if no_move_flag:
         #     print("no move --------------------------")
@@ -371,8 +377,8 @@ def score_follow(audio_file, midi_file, feature, mask):
         # print f_V_given_I[cur_pos]
         
         if plot and cur_pos > plot_position:
-                start = max(cur_pos-100,0)
-                end  = min(len(fsource),cur_pos+100)
+                start = max(cur_pos-10,0)
+                end  = min(len(fsource),cur_pos+10)
                 y1 = fsource[start:end]
                 x = []
                 y2 = f_I_given_D[start:end]
