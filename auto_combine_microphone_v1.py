@@ -19,12 +19,12 @@ import fluidsynth
 BPM = 70
 Rc = 70
 # file names
-audio_name = '''audio3'''
+audio_name = '''midi3说散就散'''
 midi_name = "midi3"
 # name to save
-audio_name_save = "audio3"
+audio_name_save = "midi3test"
 # audio end time
-audio_end_time = 500
+audio_end_time = 30
 
 
 play = True
@@ -38,18 +38,28 @@ resolution = 0.01 #0.01
 score_midi, score_axis, score_onsets, onsets, raw_score_midi,axis_loudness = get_time_axis(resolution,midi_file)
 scoreLen = len(score_axis)
 fsource = np.zeros(scoreLen)
-wf = wave.open(audio_file, 'rb')
+# wf = wave.open(audio_file, 'rb')
+# switch to microphone input
+# wf = wave.open(config['perf_audio'], 'rb')
 p = pyaudio.PyAudio()
-stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
-                    channels=wf.getnchannels(),
-                    rate=wf.getframerate(),
-                    output=True,frames_per_buffer=1024) #1024
+# stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
+#                     channels=wf.getnchannels(),
+#                     rate=wf.getframerate(),
+#                     output=True,frames_per_buffer=1024) #1024
+stream = p.open(format=pyaudio.paFloat32,
+                channels=1,
+                rate=44100,
+                input=True,
+                frames_per_buffer=3072) # 1024
+
+
 performance_start_time = 0
-n_frames = int(performance_start_time * wf.getframerate())
-wf.setpos(n_frames)
-length = wf.getnframes()
-confidence = np.zeros(scoreLen)
+n_frames = int(performance_start_time * 44100)
+# wf.setpos(n_frames)
+# length = wf.getnframes()
+# set length with midi file instead of wave file
 # confidence = np.zeros(int(math.ceil(wf.getnframes()/441))+1)# confidence should follow the length of audio
+confidence = np.zeros(scoreLen)
 time_list_for_beat = [0,1,2,3,4]
 beat_list = [0,1,2,3,4]
 confidence_queue = [0.001, 0.001, 0.001, 0.001, 0.001]
@@ -105,36 +115,49 @@ def press_key_thread():
     time.sleep(0.23)
     start_time = time.clock()
     print("start_time---------------------------"+str(time.clock()))
-    while wf.tell() < wf.getnframes():
-            data = wf.readframes(CHUNK)
+    print("Let's goooooooooooo!!!!!!")
+    # while wf.tell() < wf.getnframes():
+    while cur_time <= audio_end_time:
+            # data = wf.readframes(CHUNK)
             # print(str(stream.get_input_latency())+"input latency")
             # print(str(stream.get_output_latency())+"output latency")
             # stream.write(data)
-            while time.clock() - start_time < count_cut * time_int:
-                # print("stuck--------------------------------")
-                pass
-            # if time.clock() - start_time < count_cut * time_int:
-            #     time.sleep(count_cut * time_int-time.clock()+start_time)
+            # print(time.clock())
+            bytes_read = stream.read(1024) # 1024
+            # data = stream.read(1024)
+            # print(data)
+            data = np.frombuffer(bytes_read, dtype=np.float32)
 
+            # while time.clock() - start_time < count_cut * time_int:
+            #     # print("stuck--------------------------------")
+            #     pass
             count_cut += 1
             # data = wf.readframes(CHUNK)
-            # play the frame
-            if play:
-                stream.write(data)
-            if len(data) < CHUNK*2:
-                break
+
+            # if len(data) < CHUNK*2:
+            #     break
             datas.append(data)
-            if len(datas) >= 3:
-                c_data = datas[-3:]
-                c_data = b''.join(c_data)
-                pitch = pitch_detection_aubio(c_data,3,CHUNK)
-            else:
-                c_data = data
-                pitch = pitch_detection_aubio(c_data,1,CHUNK)
+            # if len(datas) >= 3:
+            #     c_data = datas[-3:]
+            #     # c_data = datas[-3]+datas[-2]+datas[-1]
+            #     # c_data = b''.join(bytes_read)
+            #     # c_data = np.fromstring(c_data, dtype=np.int16)
+            #     # c_data = np.true_divide(c_data, 32768, dtype=np.float32)
+            #     print(c_data)
+            #     # print(len(c_data))
+            #     pitch = pitch_detection_aubio(c_data,3,CHUNK)
+            # else:
+            #     c_data = data
+            #     print(c_data)
+                # print(len(c_data))
+                # pitch = pitch_detection_aubio(c_data,1,CHUNK)
+            pitch = pitch_detection_aubio(data,1,CHUNK)
 
             onset_detector = aubio.onset("default", CHUNK, CHUNK, 44100)
-            data_onset = np.fromstring(data, dtype=np.int16)
-            data_onset = np.true_divide(data_onset, 32768, dtype=np.float32)
+            data_onset = data
+            # data_onset = np.fromstring(data, dtype=np.int16)
+            # data_onset = np.true_divide(data_onset, 32768, dtype=np.float32)
+            # print(len(data_onset))
  
             if len(data_onset) == CHUNK: #1024
                 onset_detector(data_onset)
@@ -151,6 +174,7 @@ def press_key_thread():
 
             if pitch != -1:
                 pitch = pitch%12
+            print("singing_pitch is------- " + str(pitch))
             # print("curren_time " + str(cur_time) + "pitch is " + str(pitch) + "jump_count  " + str(jump_count))
 
             pitches.append(pitch)
@@ -191,16 +215,7 @@ def press_key_thread():
 
             # for suddenly slient while singing in the middle       
             if pitch == -1 and score_midi[cur_pos]!= -1:
-                # # try new method to help the end
-                # check = True
-                # for index in range(100):
-                #     if score_midi[cur_pos+index] == -1:
-                #         check = False
-                #         break
-                # if check:
-                #     no_move_flag = True
-                # else:
-                no_move_flag = False
+                no_move_flag = True
             # for stuck after long slience to wait for some sound
             if pitch == -1 and score_midi[cur_pos+1]!= -1:
                 no_move_flag = True
@@ -208,16 +223,8 @@ def press_key_thread():
                 no_move_flag = False
             # print("no_move_flag")
 
-
-
-            # no_move_flag = loudness == 1 and axis_loudness[cur_pos] + axis_loudness[cur_pos + 1] == 2
-
-
-
             if fsource[cur_pos] > confidence[cur_pos]:
                 confidence[cur_pos] = fsource[cur_pos]
-            # if fsource[cur_pos] > confidence[int(cur_time / resolution)]:
-            #     confidence[int(cur_time / resolution)] = fsource[cur_pos]
             old_time = cur_time
 
             old_idx = onset_idx
@@ -230,20 +237,7 @@ def press_key_thread():
                 new_note = pretty_midi.Note(velocity=old_note.velocity, pitch=old_note.pitch, start=cur_time,
                                         end=cur_time + dur)
                 piano_following.notes.append(new_note)
-                # start_sign = True
-                # if jump_count >= 20:
-                #     print("jump_count"+str(jump_count))
-                #     print("current_pitch" + str(pitch))
-                #     jump_sign = True
-                    # print("jump!!!!!!!"+str(cur_time))
-                    # print("cur_time " + str(cur_time))
-            # else:
-            #     # jump_count += 1
-            #     count_delay += 1
-            #     if count_delay >= 3 and jump_sign:
-            #         print("miss jump sign" + str(cur_time))
-            #         jump_sign = False
-            #         count_delay = 0
+
 
             for i in range(len(onsets)):
                 if cur_pos < onsets[i]:
@@ -255,8 +249,6 @@ def press_key_thread():
                 time_list_for_beat.append(time_list_for_beat[-1] + tempo_estimate_elapsed_time2)  # list can be improved
                 tempo_estimate_elapsed_time2 = 0
                 confidence_queue.append(fsource[cur_pos])
-
-                # confidence_queue.append(confidence[int(cur_time / resolution)])
                 beat_list.append(beat_list[-1]+((cur_pos-last_beat_position_1)/100)/(60/Rc))
                 last_beat_position_1 = cur_pos
 
@@ -389,10 +381,11 @@ class Player:
                 else:
                     s_old = s
                 tempo_ratio = float(self.BPS)/s
+                print("tempo_ratio --------",str(tempo_ratio))
                 schedule_time += self.resolution * tempo_ratio
                 target_start_time = schedule_time
                 latency_end = schedule_time
-                print("tempo_ratio ---------------------" + str(tempo_ratio))
+                # print("tempo_ratio ---------------------" + str(tempo_ratio))
 
                 # pitch_time_list.append(time.clock() + 0.5) #0.974
                 # pitch_play_list.append(note_pitch)
@@ -445,7 +438,7 @@ class Player:
                 try:
                     if target_start_time > time.clock():
                         time.sleep(target_start_time-time.clock())
-                        # print("wake up " + str(time.clock()))
+                        print("wake up " + str(time.clock()))
                 except:
                     break
 

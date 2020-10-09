@@ -151,6 +151,7 @@ def score_follow(audio_file, midi_file, feature, mask):
     temp_pitch = 0
     count = 1
     onset_detector = aubio.onset("default", CHUNK, CHUNK, 44100)
+    
     # for i in range(len(score_midi)):
     #     if score_midi[i] == temp_pitch:
     #         count += 1
@@ -200,9 +201,10 @@ def score_follow(audio_file, midi_file, feature, mask):
            raw_pitches.append(pitch)
         
         # print("pitch_detected"+str(time.clock()))
-
         data_onset = np.fromstring(data, dtype=np.int16)
         data_onset = np.true_divide(data_onset, 32768, dtype=np.float32)
+
+
         # print("lengtjh-----"+str(len(data_onset)))
         if len(data_onset) == CHUNK: # 1024
             onset_detector(data_onset)

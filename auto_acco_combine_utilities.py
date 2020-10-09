@@ -31,6 +31,7 @@ import os
 import librosa
 import statsmodels.api as sm
 import aubio
+cut_note = 8 #set by 0.1s
 # from auto_acco_combine_utilities import *
 # write a clean version of score_following
 # one set up function
@@ -63,9 +64,9 @@ def get_time_axis(resolution, filename):
         onsets.append(start)
         for j in range(start, end):
             if j < len(score_midi):
-                if j-start < 100:
+                if j-start < cut_note * 10: # cut note 7 8 10
                     axis_loudness[j] = 1
-                if j-start > 100:
+                if j-start > cut_note * 10:
                     score_midi[j] = -1
                 else:
                     score_midi[j] = note.pitch%12 # regulate to 12 pitch
@@ -106,7 +107,7 @@ def get_time_axis_auto_acco(resolution, filename):
         for j in range(start, end):
             if j < len(score_midi):
                 # cut 1 s
-                if j-start > 10:
+                if j-start > cut_note: # 10 or 7
                     raw_score_midi[j] = -1
                     score_midi[j] = -1
                 else:
@@ -125,9 +126,12 @@ def pitch_detection_aubio(data,size,CHUNK):
     pitch_detector = aubio.pitch('yin', CHUNK*size, CHUNK*size, 44100)
     pitch_detector.set_unit('midi')
     pitch_detector.set_tolerance(0.75)
-    samps = np.fromstring(data, dtype=np.int16)
-    samps = np.true_divide(samps, 32768, dtype=np.float32)
-    pitch = pitch_detector(samps)[0]
+    # no need for microphone version
+    # samps = np.fromstring(data, dtype=np.int16)
+    # samps = np.true_divide(samps, 32768, dtype=np.float32)
+    # pitch = pitch_detector(samps)[0]
+    # microphone version
+    pitch = pitch_detector(data)[0]
     if pitch > 84 or pitch < 40:
         return -1
     else:
@@ -312,3 +316,6 @@ def compute_tempo_ratio(b0, t0, s0, l,timeQueue):
     # sn = (float(4) * se / (te * se - tn * se - be + bn + 4))
     # print(sn)
     return bn, tn, sn
+
+
+

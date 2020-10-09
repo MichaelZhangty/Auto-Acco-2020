@@ -24,7 +24,7 @@ midi_name = "midi3"
 # name to save
 audio_name_save = "audio3"
 # audio end time
-audio_end_time = 500
+audio_end_time = 30
 
 
 play = True
@@ -38,18 +38,23 @@ resolution = 0.01 #0.01
 score_midi, score_axis, score_onsets, onsets, raw_score_midi,axis_loudness = get_time_axis(resolution,midi_file)
 scoreLen = len(score_axis)
 fsource = np.zeros(scoreLen)
-wf = wave.open(audio_file, 'rb')
+# wf = wave.open(audio_file, 'rb')
 p = pyaudio.PyAudio()
-stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
-                    channels=wf.getnchannels(),
-                    rate=wf.getframerate(),
-                    output=True,frames_per_buffer=1024) #1024
+# stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
+#                     channels=wf.getnchannels(),
+#                     rate=wf.getframerate(),
+#                     output=True,frames_per_buffer=1024) #1024
+# for micro input 
+stream = p.open(format=pyaudio.paFloat32,
+                channels=1,
+                rate=44100,
+                input=True,
+                frames_per_buffer=2048) # 1024
 performance_start_time = 0
-n_frames = int(performance_start_time * wf.getframerate())
-wf.setpos(n_frames)
-length = wf.getnframes()
-confidence = np.zeros(scoreLen)
-# confidence = np.zeros(int(math.ceil(wf.getnframes()/441))+1)# confidence should follow the length of audio
+# n_frames = int(performance_start_time * wf.getframerate())
+# wf.setpos(n_frames)
+# length = wf.getnframes()
+confidence = np.zeros(scoreLen)# confidence should follow the length of audio
 time_list_for_beat = [0,1,2,3,4]
 beat_list = [0,1,2,3,4]
 confidence_queue = [0.001, 0.001, 0.001, 0.001, 0.001]
@@ -105,36 +110,41 @@ def press_key_thread():
     time.sleep(0.23)
     start_time = time.clock()
     print("start_time---------------------------"+str(time.clock()))
-    while wf.tell() < wf.getnframes():
-            data = wf.readframes(CHUNK)
+    print("Let's goooooooooooo!!!!!!")
+    while cur_time <= audio_end_time:
+            # data = wf.readframes(CHUNK)
+            bytes_read = stream.read(1024)
+            data = np.frombuffer(bytes_read, dtype=np.float32)
             # print(str(stream.get_input_latency())+"input latency")
             # print(str(stream.get_output_latency())+"output latency")
             # stream.write(data)
-            while time.clock() - start_time < count_cut * time_int:
-                # print("stuck--------------------------------")
-                pass
+            # while time.clock() - start_time < count_cut * time_int:
+            #     # print("stuck--------------------------------")
+            #     pass
             # if time.clock() - start_time < count_cut * time_int:
             #     time.sleep(count_cut * time_int-time.clock()+start_time)
 
             count_cut += 1
             # data = wf.readframes(CHUNK)
             # play the frame
-            if play:
-                stream.write(data)
-            if len(data) < CHUNK*2:
-                break
+            # if play:
+            #     stream.write(data)
+            # if len(data) < CHUNK*2:
+            #     break
             datas.append(data)
-            if len(datas) >= 3:
-                c_data = datas[-3:]
-                c_data = b''.join(c_data)
-                pitch = pitch_detection_aubio(c_data,3,CHUNK)
-            else:
-                c_data = data
-                pitch = pitch_detection_aubio(c_data,1,CHUNK)
+            # if len(datas) >= 3:
+            #     c_data = datas[-3:]
+            #     c_data = b''.join(c_data)
+            #     pitch = pitch_detection_aubio(c_data,3,CHUNK)
+            # else:
+            #     c_data = data
+            #     pitch = pitch_detection_aubio(c_data,1,CHUNK)
+            pitch = pitch_detection_aubio(data,1,CHUNK)
+            data_onset = data
 
             onset_detector = aubio.onset("default", CHUNK, CHUNK, 44100)
-            data_onset = np.fromstring(data, dtype=np.int16)
-            data_onset = np.true_divide(data_onset, 32768, dtype=np.float32)
+            # data_onset = np.fromstring(data, dtype=np.int16)
+            # data_onset = np.true_divide(data_onset, 32768, dtype=np.float32)
  
             if len(data_onset) == CHUNK: #1024
                 onset_detector(data_onset)
@@ -214,10 +224,9 @@ def press_key_thread():
 
 
 
-            if fsource[cur_pos] > confidence[cur_pos]:
-                confidence[cur_pos] = fsource[cur_pos]
-            # if fsource[cur_pos] > confidence[int(cur_time / resolution)]:
-            #     confidence[int(cur_time / resolution)] = fsource[cur_pos]
+
+            if fsource[cur_pos] > confidence[int(cur_time / resolution)]:
+                confidence[int(cur_time / resolution)] = fsource[cur_pos]
             old_time = cur_time
 
             old_idx = onset_idx
@@ -254,9 +263,7 @@ def press_key_thread():
             if (cur_pos-last_beat_position_1)/100 > 45/Rc: #60/Rc #45 good
                 time_list_for_beat.append(time_list_for_beat[-1] + tempo_estimate_elapsed_time2)  # list can be improved
                 tempo_estimate_elapsed_time2 = 0
-                confidence_queue.append(fsource[cur_pos])
-
-                # confidence_queue.append(confidence[int(cur_time / resolution)])
+                confidence_queue.append(confidence[int(cur_time / resolution)])
                 beat_list.append(beat_list[-1]+((cur_pos-last_beat_position_1)/100)/(60/Rc))
                 last_beat_position_1 = cur_pos
 
@@ -394,13 +401,6 @@ class Player:
                 latency_end = schedule_time
                 print("tempo_ratio ---------------------" + str(tempo_ratio))
 
-                # pitch_time_list.append(time.clock() + 0.5) #0.974
-                # pitch_play_list.append(note_pitch)
-                # if time.clock() > pitch_time_list[pitch_play_index]:
-                #     if pitch_play_index > 0 and pitch_play_list[pitch_play_index] != pitch_play_list[pitch_play_index-1]:
-                #         fs.noteoff(0,pitch_play_list[pitch_play_index-1])
-                #         fs.noteon(0,pitch_play_list[pitch_play_index],100)
-                #     pitch_play_index += 1
 
                 # smooth version
                 # note_cur_time = time.clock() - begin
