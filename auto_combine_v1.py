@@ -24,7 +24,7 @@ midi_name = "midi3"
 # name to save
 audio_name_save = "audio3"
 # audio end time
-audio_end_time = 500
+audio_end_time = 20
 
 
 play = True
