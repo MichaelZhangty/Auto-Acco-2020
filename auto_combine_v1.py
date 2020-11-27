@@ -4,7 +4,16 @@ from scipy import stats
 import matplotlib.pyplot as plt
 from auto_acco_combine_utilities import *
 import fluidsynth
+import rtmidi
 
+midiout = rtmidi.MidiOut()
+available_ports = midiout.get_ports()
+print(available_ports)
+
+if available_ports:
+    midiout.open_port(0)
+else:
+    midiout.open_virtual_port("My virtual output")
 
 # BPM parameter for each midi
 # zhui guang zhe
@@ -24,7 +33,7 @@ midi_name = "midi3"
 # name to save
 audio_name_save = "audio3"
 # audio end time
-audio_end_time = 20
+audio_end_time = 60
 
 
 play = True
@@ -394,13 +403,6 @@ class Player:
                 latency_end = schedule_time
                 print("tempo_ratio ---------------------" + str(tempo_ratio))
 
-                # pitch_time_list.append(time.clock() + 0.5) #0.974
-                # pitch_play_list.append(note_pitch)
-                # if time.clock() > pitch_time_list[pitch_play_index]:
-                #     if pitch_play_index > 0 and pitch_play_list[pitch_play_index] != pitch_play_list[pitch_play_index-1]:
-                #         fs.noteoff(0,pitch_play_list[pitch_play_index-1])
-                #         fs.noteon(0,pitch_play_list[pitch_play_index],100)
-                #     pitch_play_index += 1
 
                 # smooth version
                 # note_cur_time = time.clock() - begin
@@ -410,30 +412,37 @@ class Player:
                 # print("real_time_AAAAAAAA"+str(time.clock()-begin))
                 print("pitch----------------" + str(note_pitch))
 
-
                 if note_pitch > -1:
                     if last_note_pitch != note_pitch and last_note_pitch > -1:
                         if play:
-                            fs.noteoff(0,last_note_pitch)
+                            note_off = [0x80, last_note_pitch, 0]
+                            midiout.send_message(note_off)
+                            # fs.noteoff(0,last_note_pitch)
                         new_note = pretty_midi.Note(velocity=100, pitch=last_note_pitch, start=note_to_append_time, end=note_cur_time)
                         piano.notes.append(new_note)
                         self.playTimes.append(note_to_append_time)
                         self.noteTimes.append((cnt_accompany-cnt_note_amount)*self.resolution)
                         # cnt_note_amount = 1
                         if play:
-                            fs.noteon(0,note_pitch,100)
+                            note_on = [0x90, note_pitch, 90]
+                            midiout.send_message(note_on)
+                            # fs.noteon(0,note_pitch,100)
                         note_to_append_time = note_cur_time
                     elif last_note_pitch == note_pitch:
                         cnt_note_amount += 1
                     elif last_note_pitch != note_pitch and last_note_pitch == -1:
                         if play:
-                            fs.noteon(0,note_pitch,100)
+                            note_on = [0x90, note_pitch, 90]
+                            midiout.send_message(note_on)
+                            # fs.noteon(0,note_pitch,100)
                         note_to_append_time = note_cur_time
                         cnt_note_amount = 1
                 else:
                     if last_note_pitch > -1:
                         if play:
-                            fs.noteoff(0,last_note_pitch)
+                            note_off = [0x80, last_note_pitch, 0]
+                            midiout.send_message(note_off)
+                            # fs.noteoff(0,last_note_pitch)
                         new_note = pretty_midi.Note(velocity=100, pitch=last_note_pitch, start=note_to_append_time, end=note_cur_time)
                         piano.notes.append(new_note)
                         self.playTimes.append(note_to_append_time)
