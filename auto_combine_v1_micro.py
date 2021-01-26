@@ -4,52 +4,40 @@ from scipy import stats
 import matplotlib.pyplot as plt
 from auto_acco_combine_utilities import *
 import fluidsynth
-
 import rtmidi
 
+
+# check out output instruments 
 midiout = rtmidi.MidiOut()
 available_ports = midiout.get_ports()
 print(available_ports)
-
 if available_ports:
     midiout.open_port(0)
 else:
     midiout.open_virtual_port("My virtual output")
 
-# BPM parameter for each midi
-# zhui guang zhe
-# BPM = 74
-# shuo san jiu san
-# BPM = 70
-# nanshannan
-# BPM = 67
-
-# bps = bpm / 60
-# tempo for the original midi
-# BPM = 70
-# Rc = BPM
-# file names
-midi_name = "001"
+# midi file names
+midi_name = "780"
 # name to save
-audio_name_save = "001"
+audio_name_save = "780"
 # audio end time
-audio_end_time = 10
-play = True
+audio_end_time = 20
 
 midi_file = 'pop909_converted/pop909_melody/{}.mid'.format(midi_name)
-# ACC_FILE = 'pop909_converted/pop909_melody/{}.mid'.format(midi_name)
-ACC_FILE = 'pop909_converted/pop909_acco/{}.mid'.format(midi_name)
-
-
+ACC_FILE = 'pop909_converted/pop909_melody/{}.mid'.format(midi_name)
+# ACC_FILE = 'pop909_converted/pop909_acco/{}.mid'.format(midi_name)
+NEWFILE = 'score_following/score_muti_generated_{}.mid'.format(audio_name_save)
 midi_sample = pretty_midi.PrettyMIDI(midi_file)
 BPM = midi_sample.get_tempo_changes()[1][0]
 print("auto----------bpm",BPM)
 Rc = BPM
 BPS = BPM / float(60)  # beat per second
 
+Output_player = False
+play = True
 # weight is for 0.5beats for 2 beats
 stop_thread = False
-resolution = 0.01 #0.01
+resolution = 0.01 
 score_midi, score_axis, score_onsets, onsets, raw_score_midi,axis_loudness = get_time_axis(resolution,midi_file)
 scoreLen = len(score_axis)
 fsource = np.zeros(scoreLen)
@@ -57,14 +45,14 @@ p = pyaudio.PyAudio()
 frames = []
 performance_start_time = 0
 confidence = np.zeros(scoreLen)# confidence should follow the length of audio
-time_list_for_beat = [0,1,2,3,4]
+time_list_for_beat = [0,1,2,3,4]#count for four beats and start
 beat_list = [0,1,2,3,4]
 confidence_queue = [0.001, 0.001, 0.001, 0.001, 0.001]
 score_following_finish = False
 score_following_midi = pretty_midi.PrettyMIDI()
 piano_program_following = pretty_midi.instrument_name_to_program('Acoustic Grand Piano')
 piano_following = pretty_midi.Instrument(program=piano_program_following)
-NEWFILE = 'score_following/score_muti_generated_{}.mid'.format(audio_name_save)
+# NEWFILE = 'score_following/score_muti_generated_{}.mid'.format(audio_name_save)
 # thread for simulating the audio file
 def press_key_thread():
     global stop_thread
@@ -138,10 +126,10 @@ def press_key_thread():
             # print(data)
             if len(datas) >= 3:
                 c_data = np.concatenate(datas[-3:], axis=None)
-                pitch = pitch_detection_aubio(c_data,3,CHUNK_get)
+                pitch = pitch_detection_aubio(c_data,3,CHUNK_get,True)
             else:
                 c_data = data
-                pitch = pitch_detection_aubio(c_data,1,CHUNK_get)
+                pitch = pitch_detection_aubio(c_data,1,CHUNK_get,True)
             print(pitch)
             data_onset = data
 
@@ -207,7 +195,7 @@ def press_key_thread():
             else:
                 no_move_flag = False
                 no_move_flag_counter = 0
-                
+
             if no_move_flag_counter > 5:
                 no_move_flag = False
                 no_move_flag_counter = 0
@@ -390,40 +378,42 @@ class Player:
                 if note_pitch > -1:
                     if last_note_pitch != note_pitch and last_note_pitch > -1:
                         if play:
-                            note_off = [0x80, last_note_pitch, 0]
-                            midiout.send_message(note_off)
-                            # fs.noteoff(0,last_note_pitch)
+                            if Output_player:
+                                note_off = [0x80, last_note_pitch, 0]
+                                midiout.send_message(note_off)
+                            else:
+                                fs.noteoff(0,last_note_pitch)
                         new_note = pretty_midi.Note(velocity=100, pitch=last_note_pitch, start=note_to_append_time, end=note_cur_time)
                         piano.notes.append(new_note)
                         self.playTimes.append(note_to_append_time)
                         self.noteTimes.append((cnt_accompany-cnt_note_amount)*self.resolution)
                         # cnt_note_amount = 1
                         if play:
-                            # print("--------------play")
-                            # print(note_pitch)
-                            note_on = [0x90, note_pitch, 90]
-                            midiout.send_message(note_on)
-                            # time.sleep(0.1)
-                            # fs.noteon(0,note_pitch,100)
+                            if Output_player:
+                                note_on = [0x90, note_pitch, 90]
+                                midiout.send_message(note_on)
+                            else:
+                                fs.noteon(0,note_pitch,100)
                         note_to_append_time = note_cur_time
                     elif last_note_pitch == note_pitch:
                         cnt_note_amount += 1
                     elif last_note_pitch != note_pitch and last_note_pitch == -1:
                         if play:
-                            # print("--------------play")
-                            # print(note_pitch)
-                            note_on = [0x90,note_pitch, 90]
-                            midiout.send_message(note_on)
-                            # time.sleep(0.1)
-                            # fs.noteon(0,note_pitch,100)
+                            if Output_player:
+                                note_on = [0x90,note_pitch, 90]
+                                midiout.send_message(note_on)
+                            else:
+                                fs.noteon(0,note_pitch,100)
                         note_to_append_time = note_cur_time
                         cnt_note_amount = 1
                 else:
                     if last_note_pitch > -1:
                         if play:
-                            note_off = [0x80, last_note_pitch, 0]
-                            midiout.send_message(note_off)
-                            # fs.noteoff(0,last_note_pitch)
+                            if Output_player:
+                                note_off = [0x80, last_note_pitch, 0]
+                                midiout.send_message(note_off)
+                            else:
+                                fs.noteoff(0,last_note_pitch)
 
                         new_note = pretty_midi.Note(velocity=100, pitch=last_note_pitch, start=note_to_append_time, end=note_cur_time)
                         piano.notes.append(new_note)

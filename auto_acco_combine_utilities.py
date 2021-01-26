@@ -121,19 +121,21 @@ def get_time_axis_auto_acco(resolution, filename):
 
 
 
-def pitch_detection_aubio(data,size,CHUNK):
+def pitch_detection_aubio(data,size,CHUNK,micro=False):
     # CHUNK = #1024
     pitch_detector = aubio.pitch('yin', CHUNK*size, CHUNK*size, 44100)
     pitch_detector.set_unit('midi')
     pitch_detector.set_tolerance(0.75) #0.5 #0.75
     # no need for microphone version
     # print(len(data))
-    # samps = np.fromstring(data, dtype=np.int16)
-    # samps = np.true_divide(samps, 32768, dtype=np.float32)
-    # pitch = pitch_detector(samps)[0]
+    if not micro:
+        samps = np.fromstring(data, dtype=np.int16)
+        samps = np.true_divide(samps, 32768, dtype=np.float32)
+        pitch = pitch_detector(samps)[0]
+    else:
     # print(pitch)
     # microphone version
-    pitch = pitch_detector(data)[0]
+        pitch = pitch_detector(data)[0]
     # print(pitch)
     if pitch > 84 or pitch < 40:
         return -1
