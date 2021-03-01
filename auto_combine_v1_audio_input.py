@@ -25,21 +25,26 @@ else:
 
 
 # tempo for the original midi
-BPM = 70
-Rc = 70
+# BPM = 70
+# Rc = 70
 # file names
-audio_name = '''audio3'''
+audio_name = '''midi3说散就散'''
 midi_name = "midi3"
 # name to save
-audio_name_save = "audio3"
+audio_name_save = "midi3说散就散"
 # audio end time
-audio_end_time = 30
+audio_end_time = 70
 
-
-play = True
+tempo_check_help = False
+beat_help = True
+play = False
 audio_file = 'audio/{}.wav'.format(audio_name)
 midi_file = 'midi/{}.mid'.format(midi_name)
 ACC_FILE = 'midi/{}.mid'.format(midi_name)
+
+midi_sample = pretty_midi.PrettyMIDI(midi_file)
+BPM = midi_sample.get_tempo_changes()[1][0]
+Rc = BPM
 BPS = BPM / float(60)  # beat per second
 # weight is for 0.5beats for 2 beats
 stop_thread = False
@@ -47,6 +52,9 @@ resolution = 0.01 #0.01
 score_midi, score_axis, score_onsets, onsets, raw_score_midi,axis_loudness = get_time_axis(resolution,midi_file)
 scoreLen = len(score_axis)
 fsource = np.zeros(scoreLen)
+# up and down beat axis
+fsource_beat = create_up_down_beat_axis(scoreLen,BPM)
+
 wf = wave.open(audio_file, 'rb')
 p = pyaudio.PyAudio()
 stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
@@ -68,6 +76,7 @@ piano_program_following = pretty_midi.instrument_name_to_program('Acoustic Grand
 piano_following = pretty_midi.Instrument(program=piano_program_following)
 NEWFILE = 'score_following/score_muti_generated_{}.mid'.format(audio_name_save)
 # thread for simulating the audio file
+tempo_check = True # True means regulation
 def press_key_thread():
     global stop_thread
     global latency_end
@@ -78,6 +87,10 @@ def press_key_thread():
     global cur_pos
     global start_time
     global begin
+    # count for 2-3beat
+    global tempo_check
+    tempo_count = 0
+
     latency_end = -1
     CHUNK = 1024 #1024
     time_int = float(CHUNK) / 44100
@@ -93,6 +106,9 @@ def press_key_thread():
     temp_upbound = 1.3 #1.3
     no_move_flag = False
     fsource[0] = 1
+    # test for juan yi dian
+    for i in range(10):
+        fsource[i] = 0.1
     cur_pos = 0
     old_pos = 0
     alpha = 10
@@ -186,16 +202,33 @@ def press_key_thread():
             if no_move_flag:
                 f_I_given_D = fsource
             cur_pos = np.argmax(f_I_given_D)
+            # print("cur_pos--------------",cur_pos)
+            # print("old_cur_pos-------------",np.argmax(f_I_given_D_o))
             # F_V_give_I is the p(o|st)
             # F_I_give_D is the p(st)
             # f_source = p(st+1)
             f_V_given_I = compute_f_V_given_I(pitch, pitches, scoreLen, score_midi, onset_prob, score_onsets, alpha,
                                                  w1, w2, w3,cur_pos)
+            # test for up and down beat
+            # window_size = 200
+            # left = max(0, cur_pos - window_size)
+            # right = min(scoreLen, cur_pos + window_size)
+            # fsource_beat_cur = fsource_beat[left:right]
+            # if beat_help:
+            #     f_V_given_I = f_V_given_I*fsource_beat
+
+
+
+
             fsource = f_V_given_I * f_I_given_D
             gate_mask = create_gate_mask(cur_pos, scoreLen,tempo,Rc)
             fsource = fsource * gate_mask
             fsource = fsource / sum(fsource)
             cur_pos = np.argmax(fsource)
+            # if fsource_beat[cur_pos] == 2:
+            #     print("strong beat --------------")
+            # else:
+            #     print("weak beat --------------")
             # print("cur_pos is " + str(cur_pos))
 
             # for suddenly slient while singing in the middle       
@@ -224,7 +257,11 @@ def press_key_thread():
 
 
             if fsource[cur_pos] > confidence[cur_pos]:
+                # if not beat_help:
                 confidence[cur_pos] = fsource[cur_pos]
+                # else:
+                # with strong and weak beat help
+                    # confidence[cur_pos] = fsource_beat[cur_pos]
             # if fsource[cur_pos] > confidence[int(cur_time / resolution)]:
             #     confidence[int(cur_time / resolution)] = fsource[cur_pos]
             old_time = cur_time
@@ -260,10 +297,12 @@ def press_key_thread():
                 old_idx = i - 1
 
             # record the beat time
-            if (cur_pos-last_beat_position_1)/100 > 45/Rc: #60/Rc #45 good
+            if (cur_pos-last_beat_position_1)/100 > 60/Rc: #60/Rc #45 good
                 time_list_for_beat.append(time_list_for_beat[-1] + tempo_estimate_elapsed_time2)  # list can be improved
                 tempo_estimate_elapsed_time2 = 0
-                confidence_queue.append(fsource[cur_pos])
+                # confidence_queue.append(fsource[cur_pos])
+                # version for strong beat help
+                confidence_queue.append(fsource_beat[cur_pos])
 
                 # confidence_queue.append(confidence[int(cur_time / resolution)])
                 beat_list.append(beat_list[-1]+((cur_pos-last_beat_position_1)/100)/(60/Rc))
@@ -275,8 +314,19 @@ def press_key_thread():
                 else:
                     l = max(0, latency_end - time.clock())
                 # print("latency=========== " + str(l))
+                
                 b0, t0, s0 = compute_tempo_ratio_weighted(b0, t0, s0, l,time_list_for_beat,beat_back,confidence_queue,beat_list)
                 # b0, t0, s0 = compute_tempo_ratio(b0,t0,s0, l,time_list_for_beat)
+                # check for temop for acco
+                tempo_ratio = float(BPS)/s0   
+                print("tempo_check is------------------------- ",str(tempo_check)) 
+                # set tempo regulation for accompany     
+                up_ratio  = 1.2
+                down_ratio = 0.8     
+                if tempo_check_help and tempo_check and tempo_ratio > up_ratio:
+                    s0 = BPS/up_ratio
+                if tempo_check_help and tempo_check and tempo_ratio < down_ratio:
+                    s0 = BPS/down_ratio
                 list_b0.append(b0)
                 list_t0.append(t0)
                 sQueue.append(s0)
@@ -288,8 +338,17 @@ def press_key_thread():
                 tempo = tempo_estimate(tempo_estimate_elapsed_time, cur_pos, old_pos,Rc,resolution)
                 if tempo / float(Rc) < temp_downbound:
                     tempo = Rc * temp_downbound
+                    tempo_count += 1
                 elif tempo / float(Rc) > temp_upbound:
                     tempo = Rc * temp_upbound
+                    tempo_count += 1
+                else:
+                    tempo_count = 0
+                if tempo_count > 2: # 1
+                    tempo_check = False
+                else:
+                    tempo_check = True
+
                 tempo_estimate_elapsed_time = 0 
                 estimated_tempo = tempo
                 old_pos = cur_pos

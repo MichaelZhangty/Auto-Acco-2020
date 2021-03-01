@@ -9,20 +9,16 @@ Use the package manager [pip](https://pip.pypa.io/en/stable/) to install Auto-Ac
 # Usage
 
 ```python
-# tempo for the original midi
-BPM = 67
-Rc = 67
-# file names
-audio_name = "nanshanshan-gus-01"
-midi_name = "midi4"
+# midi file names
+midi_name = "780"
 # name to save
-audio_name_save = "audio_gus_nanshannan_muti_test"
+audio_name_save = "780"
 # audio end time
-audio_end_time = 10
+audio_end_time = 20
 ```
 
-Change audio_name, midi_name, BPM, Rc, audio_name_save,audio_end_time according to your preference.
+Change audio_name_save, midi_name, audio_end_time according to your preference.
 
-run auto_combine_v1.py with your audio and midi.
+run auto_combine_v1_micro.py with your midi.
 
 The final result is in auto_accompany folder.

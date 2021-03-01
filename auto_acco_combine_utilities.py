@@ -151,18 +151,36 @@ def compute_f_I_given_D(fsource, f_I_J_given_D, cur_pos, scoreLen,window_size=20
     f_I_given_D = np.zeros(scoreLen)
     fsource_w = fsource[left:right]
     f_I_J_given_D_w = f_I_J_given_D[:right - left]
+
+    #test for sum to 1
+    # f_I_J_given_D_new = f_I_J_given_D[:right - left]/sum(f_I_J_given_D[:right - left])
+    # f_I_J_given_D_w = f_I_J_given_D_new
+
+    # f_I_given_D_w_new = np.convolve(fsource_w, f_I_J_given_D_w,'same')
+    # f_I_given_D_w_new = f_I_given_D_w_new / sum(f_I_given_D_w_new)
+
+
     f_I_given_D_w = np.convolve(fsource_w, f_I_J_given_D_w)
+    # f_test = np.convolve(fsource_w, f_I_J_given_D_w,'same')
+    # print(np.argmax(f_I_given_D_w),'o')
+    # print(np.argmax(f_test))
+
+
     f_I_given_D_w = f_I_given_D_w / sum(f_I_given_D_w)
+    # print(len(fsource_w),'source')
+    # print(len(f_I_J_given_D_w),'ijd')
+    # print(len(f_I_given_D_w))
     if left + len(f_I_given_D_w) > scoreLen:
         end = scoreLen
     else:
-        end = left + len(f_I_given_D_w)
+        end = left + len(f_I_given_D_w) 
     f_I_given_D[left:end] = f_I_given_D_w[:(end - left)]
     # plt.plot(f_I_given_D[:50])
     # plt.show()
     # plt.plot(fsource[:50])
     # plt.show()
     return f_I_given_D
+
 
 def compute_f_I_J_given_D(score_axis, estimated_tempo, elapsed_time, beta,alpha,Rc,no_move_flag):
     # if no_move_flag:
@@ -273,6 +291,7 @@ def similarity(onset_prob, score_onset):
     sim = float(min(onset_prob, score_onset) + 1e-6) / (max(onset_prob, score_onset) + 1e-6)
     return sim
 
+
 def compute_tempo_ratio_weighted(b0, t0, s0, l,timeQueue,beat_back,confidence_queue,beat_list):
     t1 = timeQueue[-1]
     b = b0 + (t1 + l - t0) * s0
@@ -293,6 +312,7 @@ def compute_tempo_ratio_weighted(b0, t0, s0, l,timeQueue,beat_back,confidence_qu
         se = results.params[1]
     else:
         wls_model = sm.WLS(y, x, weights=confidence_block)
+        # wls_model = sm.WLS(y, x)
         results = wls_model.fit()
         se = results.params[1]
         # correct beat position according to weighted regression
@@ -321,6 +341,30 @@ def compute_tempo_ratio(b0, t0, s0, l,timeQueue):
     # sn = (float(4) * se / (te * se - tn * se - be + bn + 4))
     # print(sn)
     return bn, tn, sn
+
+
+def create_up_down_beat_axis(scoreLen,BPM,feature='44'):
+    #default resolution is 0.01s
+    # fsource = np.ones(scoreLen)
+    fsource_beat = []
+    print(round(BPM))
+    beat_sec = int(round(60/round(BPM)*100))
+    print(beat_sec)
+    if feature == "44":
+        i = 0
+        while len(fsource_beat) <= scoreLen:s
+            for j in range(beat_sec):
+                fsource_beat.append(1.5)
+            for j in range(beat_sec):
+                fsource_beat.append(1)
+            for j in range(beat_sec):
+                fsource_beat.append(1)
+            for j in range(beat_sec):
+                fsource_beat.append(1)
+    while len(fsource_beat) > scoreLen:
+        fsource_beat.pop()
+    return np.array(fsource_beat) 
+
 
 
 
