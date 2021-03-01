@@ -17,15 +17,22 @@ else:
     midiout.open_virtual_port("My virtual output")
 
 # midi file names
-midi_name = "780"
+midi_name = "336"
 # name to save
-audio_name_save = "780"
+audio_name_save = "336"
 # audio end time
-audio_end_time = 20
+audio_end_time = 30
 
 midi_file = 'pop909_converted/pop909_melody/{}.mid'.format(midi_name)
-ACC_FILE = 'pop909_converted/pop909_melody/{}.mid'.format(midi_name)
+# ACC_FILE = 'pop909_converted/pop909_melody/{}.mid'.format(midi_name)
+ACC_FILE = 'pop909_converted/pop909_acco/{}.mid'.format(midi_name)
 NEWFILE = 'score_following/score_muti_generated_{}.mid'.format(audio_name_save)
+
+
+# set test midi acc
+# midi_file = 'midi/midi4.mid'
+# ACC_FILE = 'midi/midi4.mid'
+
 midi_sample = pretty_midi.PrettyMIDI(midi_file)
 BPM = midi_sample.get_tempo_changes()[1][0]
 print("auto----------bpm",BPM)
@@ -33,7 +40,10 @@ Rc = BPM
 BPS = BPM / float(60)  # beat per second
 
 
-tempo_check_help = False
+
+melody_play = True
+tempo_check_help = True
+tempo_check = True
 Output_player = False
 play = True
 # weight is for 0.5beats for 2 beats
@@ -65,6 +75,7 @@ def press_key_thread():
     global cur_pos
     global start_time
     global begin
+    global tempo_check
     tempo_count  = 0
     latency_end = -1
     CHUNK = 1024
@@ -237,7 +248,7 @@ def press_key_thread():
                 # print("latency=========== " + str(l))
                 b0, t0, s0 = compute_tempo_ratio_weighted(b0, t0, s0, l,time_list_for_beat,beat_back,confidence_queue,beat_list)
                 # b0, t0, s0 = compute_tempo_ratio(b0,t0,s0, l,time_list_for_beat)
-
+                tempo_ratio = float(BPS)/s0  
                 up_ratio  = 1.2
                 down_ratio = 0.8     
                 if tempo_check_help and tempo_check and tempo_ratio > up_ratio:
@@ -390,8 +401,17 @@ class Player:
                 # print("real_time_AAAAAAAA"+str(time.perf_counter()))
                 # print("pitch----------------" + str(note_pitch))
 
+                #simple play
+                if note_pitch>-1 and not melody_play:
+                    if play:
+                        if Output_player:
+                            note_on = [0x90,note_pitch, 90]
+                            midiout.send_message(note_on)
+                        else:
+                            fs.noteon(0,note_pitch,100)
 
-                if note_pitch > -1:
+
+                if note_pitch > -1 and melody_play:
                     if last_note_pitch != note_pitch and last_note_pitch > -1:
                         if play:
                             if Output_player:
@@ -422,7 +442,7 @@ class Player:
                                 fs.noteon(0,note_pitch,100)
                         note_to_append_time = note_cur_time
                         cnt_note_amount = 1
-                else:
+                elif melody_play:
                     if last_note_pitch > -1:
                         if play:
                             if Output_player:

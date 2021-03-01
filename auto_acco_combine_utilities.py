@@ -352,7 +352,7 @@ def create_up_down_beat_axis(scoreLen,BPM,feature='44'):
     print(beat_sec)
     if feature == "44":
         i = 0
-        while len(fsource_beat) <= scoreLen:s
+        while len(fsource_beat) <= scoreLen:
             for j in range(beat_sec):
                 fsource_beat.append(1.5)
             for j in range(beat_sec):
