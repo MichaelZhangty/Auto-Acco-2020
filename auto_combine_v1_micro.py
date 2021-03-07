@@ -17,11 +17,11 @@ else:
     midiout.open_virtual_port("My virtual output")
 
 # midi file names
-midi_name = "336"
+midi_name = "017"
 # name to save
-audio_name_save = "336"
+audio_name_save = "017"
 # audio end time
-audio_end_time = 30
+audio_end_time = 100
 
 midi_file = 'pop909_converted/pop909_melody/{}.mid'.format(midi_name)
 # ACC_FILE = 'pop909_converted/pop909_melody/{}.mid'.format(midi_name)
@@ -29,9 +29,9 @@ ACC_FILE = 'pop909_converted/pop909_acco/{}.mid'.format(midi_name)
 NEWFILE = 'score_following/score_muti_generated_{}.mid'.format(audio_name_save)
 
 
-# set test midi acc
-# midi_file = 'midi/midi4.mid'
-# ACC_FILE = 'midi/midi4.mid'
+# set test midi acc 
+# midi_file = 'midi/midi_test.mid'
+# ACC_FILE = 'midi/midi_test.mid'
 
 midi_sample = pretty_midi.PrettyMIDI(midi_file)
 BPM = midi_sample.get_tempo_changes()[1][0]
@@ -250,7 +250,8 @@ def press_key_thread():
                 # b0, t0, s0 = compute_tempo_ratio(b0,t0,s0, l,time_list_for_beat)
                 tempo_ratio = float(BPS)/s0  
                 up_ratio  = 1.2
-                down_ratio = 0.8     
+                down_ratio = 0.8 
+
                 if tempo_check_help and tempo_check and tempo_ratio > up_ratio:
                     s0 = BPS/up_ratio
                 if tempo_check_help and tempo_check and tempo_ratio < down_ratio:
@@ -273,7 +274,7 @@ def press_key_thread():
                     tempo_count += 1
                 else:
                     tempo_count = 0
-                if tempo_count > 2: # 1
+                if tempo_count > 3: # 1
                     tempo_check = False
                 else:
                     tempo_check = True
@@ -329,19 +330,21 @@ piano_program = pretty_midi.instrument_name_to_program('Acoustic Grand Piano')
 piano = pretty_midi.Instrument(program=piano_program)
 
 
+
 class Player:
     def __init__(self, ACC_FILE, BPM, fs):
         self.ACC_FILE = ACC_FILE
         self.start_time = 0 #start_time
-        self.midi_data = pretty_midi.PrettyMIDI(ACC_FILE)
-        self.notes = sorted(self.midi_data.instruments[0].notes, key=lambda x: x.start, reverse=False)
+        # self.midi_data = pretty_midi.PrettyMIDI(ACC_FILE)
+        self.midi_events, self.midi_tempo = load_midi(ACC_FILE)
+        # self.notes = sorted(self.midi_data.instruments[0].notes, key=lambda x: x.start, reverse=False)
         self.resolution = 0.1
         # self.end_time = end_time
         # score_midi, axis, score_onsets, onsets, raw_score_midi
-        self.score_midi, self.axis, self.score_onsets, self.onsets,self.raw_score_midi = get_time_axis_auto_acco(self.resolution, self.ACC_FILE)
+        # self.score_midi, self.axis, self.score_onsets, self.onsets,self.raw_score_midi = get_time_axis_auto_acco(self.resolution, self.ACC_FILE)
         self.playTimes = []
         self.noteTimes = []
-        self.midi_start_time = self.notes[0].start
+        # self.midi_start_time = self.notes[0].start
         # self.BPS = BPM / float(60)
         self.BPS = BPM / float(60)
         self.fs = fs
@@ -360,116 +363,165 @@ class Player:
         global cur_pos
         global start_time
         global begin
+
+
+        # print(midi_tempo)
+        print("start_time_acco---------------------------"+str(time.perf_counter()))
+        cur_pos = 0
+        event_pos= 0
+        # cur_tempo = selmidi_tempo[0]
+        last_time = time.perf_counter()
+        schedule_time = last_time
+        while event_pos < len(self.midi_events):
+            if score_following_finish:
+                break
+            s = sQueue[-1]
+            if s == 0:
+                s = s_old
+            else:
+                s_old = s
+            tempo_ratio = float(self.BPS)/s
+            elapse_time = time.perf_counter() - last_time
+            last_time = time.perf_counter()
+            schedule_time += tempo_ratio * elapse_time 
+
+            # schedule_time += self.resolution * tempo_ratio
+            # target_start_time = schedule_time
+            # latency_end = schedule_time
+            while self.midi_events[event_pos][0] <= schedule_time:
+                # print("play")
+                ev = self.midi_events[event_pos]
+                if ev[1] == 1:
+                    if Output_player:
+                        note_on = [0x90, ev[2], ev[3]]
+                        midiout.send_message(note_on)
+                    else:
+                        fs.noteon(0,ev[2], ev[3])
+                elif ev[1] == 0:
+                    if Output_player:
+                        note_off = [0x80, ev[2],0]
+                        midiout.send_message(note_on)
+                    else:
+                        fs.noteoff(0,ev[2])
+                event_pos += 1
+            time.sleep(self.resolution)
+            # try:
+            #     if schedule_time > time.perf_counter():
+            #             time.sleep(schedule_time-time.perf_counter())
+            # except:
+            #     break
+
+
         # global start_sign
-        begin = time.perf_counter()
-        print("begin time------------------------------" + str(begin))
-        total_delay = 0
-        cnt_accompany = 0
-        last_note_pitch = -1
-        note_to_append_time = 0
-        cnt_note_amount = 0
+        # begin = time.perf_counter()
+        # print("begin time------------------------------" + str(begin))
+        # total_delay = 0
+        # cnt_accompany = 0
+        # last_note_pitch = -1
+        # note_to_append_time = 0
+        # cnt_note_amount = 0
 
-        index = 0
-        schedule_time = begin # begin
-        while index < len(self.raw_score_midi):
-                # note_on = [0x90, 60, 90]
-                # note_off = [0x80, 60, 0]
-                # midiout.send_message(note_on)
-                # time.sleep(0.5)
-                # midiout.send_message(note_off)       
-                note_pitch = self.raw_score_midi[index]
-                if score_following_finish:
-                    break
-                # print(sQueue)
-                s = sQueue[-1]
-                if s == 0:
-                    s = s_old
-                else:
-                    s_old = s
-                tempo_ratio = float(self.BPS)/s
-                schedule_time += self.resolution * tempo_ratio
-                target_start_time = schedule_time
-                latency_end = schedule_time
-                # print("tempo_ratio ---------------------" + str(tempo_ratio))
-
-
-                # smooth version
-                # note_cur_time = time.clock() - begin
-                note_cur_time = time.perf_counter() - begin
-                # print("cur_time_accompany_midi"+str(index*self.resolution))
-                # print("cur_time_score_following_midi"+str(cur_pos/100))
-                # print("real_time_AAAAAAAA"+str(time.perf_counter()))
-                # print("pitch----------------" + str(note_pitch))
-
-                #simple play
-                if note_pitch>-1 and not melody_play:
-                    if play:
-                        if Output_player:
-                            note_on = [0x90,note_pitch, 90]
-                            midiout.send_message(note_on)
-                        else:
-                            fs.noteon(0,note_pitch,100)
+        # index = 0
+        # schedule_time = begin # begin
+        # while index < len(self.raw_score_midi):
+        #         # note_on = [0x90, 60, 90]
+        #         # note_off = [0x80, 60, 0]
+        #         # midiout.send_message(note_on)
+        #         # time.sleep(0.5)
+        #         # midiout.send_message(note_off)       
+        #         note_pitch = self.raw_score_midi[index]
+        #         if score_following_finish:
+        #             break
+        #         # print(sQueue)
+        #         s = sQueue[-1]
+        #         if s == 0:
+        #             s = s_old
+        #         else:
+        #             s_old = s
+        #         tempo_ratio = float(self.BPS)/s
+        #         schedule_time += self.resolution * tempo_ratio
+        #         target_start_time = schedule_time
+        #         latency_end = schedule_time
+        #         # print("tempo_ratio ---------------------" + str(tempo_ratio))
 
 
-                if note_pitch > -1 and melody_play:
-                    if last_note_pitch != note_pitch and last_note_pitch > -1:
-                        if play:
-                            if Output_player:
-                                note_off = [0x80, last_note_pitch, 0]
-                                midiout.send_message(note_off)
-                            else:
-                                fs.noteoff(0,last_note_pitch)
-                        new_note = pretty_midi.Note(velocity=100, pitch=last_note_pitch, start=note_to_append_time, end=note_cur_time)
-                        piano.notes.append(new_note)
-                        self.playTimes.append(note_to_append_time)
-                        self.noteTimes.append((cnt_accompany-cnt_note_amount)*self.resolution)
-                        # cnt_note_amount = 1
-                        if play:
-                            if Output_player:
-                                note_on = [0x90, note_pitch, 90]
-                                midiout.send_message(note_on)
-                            else:
-                                fs.noteon(0,note_pitch,100)
-                        note_to_append_time = note_cur_time
-                    elif last_note_pitch == note_pitch:
-                        cnt_note_amount += 1
-                    elif last_note_pitch != note_pitch and last_note_pitch == -1:
-                        if play:
-                            if Output_player:
-                                note_on = [0x90,note_pitch, 90]
-                                midiout.send_message(note_on)
-                            else:
-                                fs.noteon(0,note_pitch,100)
-                        note_to_append_time = note_cur_time
-                        cnt_note_amount = 1
-                elif melody_play:
-                    if last_note_pitch > -1:
-                        if play:
-                            if Output_player:
-                                note_off = [0x80, last_note_pitch, 0]
-                                midiout.send_message(note_off)
-                            else:
-                                fs.noteoff(0,last_note_pitch)
+        #         # smooth version
+        #         # note_cur_time = time.clock() - begin
+        #         note_cur_time = time.perf_counter() - begin
+        #         # print("cur_time_accompany_midi"+str(index*self.resolution))
+        #         # print("cur_time_score_following_midi"+str(cur_pos/100))
+        #         # print("real_time_AAAAAAAA"+str(time.perf_counter()))
+        #         # print("pitch----------------" + str(note_pitch))
 
-                        new_note = pretty_midi.Note(velocity=100, pitch=last_note_pitch, start=note_to_append_time, end=note_cur_time)
-                        piano.notes.append(new_note)
-                        self.playTimes.append(note_to_append_time)
-                        self.noteTimes.append((cnt_accompany-cnt_note_amount)*self.resolution)
-                        cnt_note_amount = 0
+        #         #simple play
+        #         if note_pitch>-1 and not melody_play:
+        #             if play:
+        #                 if Output_player:
+        #                     note_on = [0x90,note_pitch, 90]
+        #                     midiout.send_message(note_on)
+        #                 else:
+        #                     fs.noteon(0,note_pitch,100)
 
-                # fs.noteon(1,note_pitch,100)
 
-                try:
-                    if target_start_time > time.perf_counter():
-                        time.sleep(target_start_time-time.perf_counter())
-                except:
-                    break
+        #         if note_pitch > -1 and melody_play:
+        #             if last_note_pitch != note_pitch and last_note_pitch > -1:
+        #                 if play:
+        #                     if Output_player:
+        #                         note_off = [0x80, last_note_pitch, 0]
+        #                         midiout.send_message(note_off)
+        #                     else:
+        #                         fs.noteoff(0,last_note_pitch)
+        #                 new_note = pretty_midi.Note(velocity=100, pitch=last_note_pitch, start=note_to_append_time, end=note_cur_time)
+        #                 piano.notes.append(new_note)
+        #                 self.playTimes.append(note_to_append_time)
+        #                 self.noteTimes.append((cnt_accompany-cnt_note_amount)*self.resolution)
+        #                 # cnt_note_amount = 1
+        #                 if play:
+        #                     if Output_player:
+        #                         note_on = [0x90, note_pitch, 90]
+        #                         midiout.send_message(note_on)
+        #                     else:
+        #                         fs.noteon(0,note_pitch,100)
+        #                 note_to_append_time = note_cur_time
+        #             elif last_note_pitch == note_pitch:
+        #                 cnt_note_amount += 1
+        #             elif last_note_pitch != note_pitch and last_note_pitch == -1:
+        #                 if play:
+        #                     if Output_player:
+        #                         note_on = [0x90,note_pitch, 90]
+        #                         midiout.send_message(note_on)
+        #                     else:
+        #                         fs.noteon(0,note_pitch,100)
+        #                 note_to_append_time = note_cur_time
+        #                 cnt_note_amount = 1
+        #         elif melody_play:
+        #             if last_note_pitch > -1:
+        #                 if play:
+        #                     if Output_player:
+        #                         note_off = [0x80, last_note_pitch, 0]
+        #                         midiout.send_message(note_off)
+        #                     else:
+        #                         fs.noteoff(0,last_note_pitch)
 
-                # fs.noteoff(1,note_pitch)
+        #                 new_note = pretty_midi.Note(velocity=100, pitch=last_note_pitch, start=note_to_append_time, end=note_cur_time)
+        #                 piano.notes.append(new_note)
+        #                 self.playTimes.append(note_to_append_time)
+        #                 self.noteTimes.append((cnt_accompany-cnt_note_amount)*self.resolution)
+        #                 cnt_note_amount = 0
+
+        #         # fs.noteon(1,note_pitch,100)
+
+        #         try:
+        #             if target_start_time > time.perf_counter():
+        #                 time.sleep(target_start_time-time.perf_counter())
+        #         except:
+        #             break
+
+        #         # fs.noteoff(1,note_pitch)
                 
-                last_note_pitch = note_pitch
-                cnt_accompany += 1
-                index += 1
+        #         last_note_pitch = note_pitch
+        #         cnt_accompany += 1
+        #         index += 1
 
 
 
@@ -488,11 +540,11 @@ class Player:
 
 
 
-        plt.scatter(x=self.playTimes, y=self.noteTimes, c='b', s=10, marker='o')
-        plt.plot(tap_time, tap_beat, marker='+')
-        plt.xlabel('audio time (seconds)')
-        plt.ylabel('score time (seconds)')
-        plt.show()
+        # plt.scatter(x=self.playTimes, y=self.noteTimes, c='b', s=10, marker='o')
+        # plt.plot(tap_time, tap_beat, marker='+')
+        # plt.xlabel('audio time (seconds)')
+        # plt.ylabel('score time (seconds)')
+        # plt.show()
 
     '''
     function:jump

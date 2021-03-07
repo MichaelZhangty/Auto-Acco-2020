@@ -38,8 +38,22 @@ cut_note = 8 #set by 0.1s
 # one while running function 
 # shared is sQueue
 # get time axis from midi file
-
-
+# load midi from accompany 
+def load_midi(midi_path):
+        midi_file = pretty_midi.PrettyMIDI(midi_path)
+        bpm = midi_file.get_tempo_changes()[1]
+        bps = bpm / 60
+        events = []
+        for note in midi_file.instruments[0].notes:
+            # time in beat, type (1=start and 0=end), pitch, velocity
+            # to convert from second to beat, second * beat/second = beat
+            # use time in beat because time in second should be updated each time tempo changes,
+            # but time in beat doesn't
+            events.append((note.start * bps, 1, note.pitch, note.velocity))
+            events.append((note.end * bps, 0, note.pitch, 0))
+        # sorted by time, when time is same, note off (0) goes first
+        events = sorted(events, key=lambda x: (x[0], x[1]))
+        return events, bps
 # get time axis from midi file
 def get_time_axis(resolution, filename):
     # resolution = 0.1 #0.01
@@ -73,13 +87,6 @@ def get_time_axis(resolution, filename):
                 raw_score_midi[j] = note.pitch
             # modification for at most 1.5s
     
-    # for index in range(len(score_midi)):
-    #     if score_midi[index] == -1:
-    #         if index == 0:
-    #             score_midi[index] = midi_data.instruments[0].notes[0].pitch%12
-    #         else:
-    #             score_midi[index] = score_midi[index-1]
-    # print(min(score_midi))
 
     # plot to check
     # plt.plot(score_midi)
